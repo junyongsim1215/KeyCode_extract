@@ -2,8 +2,8 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>캡쳐본 키값 추출</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>샘플 벌크 키값 추출</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Tesseract.js (클라이언트 OCR 엔진) -->
@@ -14,31 +14,352 @@
     ::-webkit-scrollbar-track { background: #f1f5f9; }
     ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
     ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    /* 터치 환경 모바일 탭 강조 제거 */
+    * { -webkit-tap-highlight-color: transparent; }
   </style>
 </head>
-<body class="bg-[#f8fafc] text-slate-800 min-h-screen">
+<body class="bg-[#f8fafc] text-slate-800 min-h-screen pb-10">
 
-  <!-- 상단 네비게이션 헤더 -->
-  <header class="bg-white border-b border-slate-200 px-6 py-4 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-30 shadow-sm">
+  <!-- 상단 헤더 -->
+  <header class="bg-white border-b border-slate-200 px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-3 sticky top-0 z-30 shadow-sm">
     <div class="flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
-        J
+      <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-base sm:text-lg shadow-sm shrink-0">
+        K
       </div>
       <div>
         <div class="flex items-center gap-2">
-          <h1 class="text-xl font-bold text-slate-900 tracking-tight">캡쳐본 키값 추출</h1>
-          <span class="text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full">키코드 자동 추출기</span>
+          <h1 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">샘플 벌크 키값 추출</h1>
+          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">자동 추출</span>
         </div>
-        <p class="text-xs text-slate-500 mt-0.5">스크린샷 내 Key Code를 자동 추출하여 스프레드시트 5컬럼 포맷으로 변환합니다.</p>
+        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">스크린샷 내 Key Code를 자동 추출하여 스프레드시트 5컬럼 포맷으로 변환합니다.</p>
       </div>
     </div>
-    <div class="flex items-center gap-2">
+    <div class="hidden sm:flex items-center gap-2">
       <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-        무제한 자동 중복 필터링 활성
+        무제한 자동 중복 필터링
       </span>
     </div>
   </header>
 
   <!-- 메인 레이아웃 -->
-  <main class="max-w-[1700px] mx-auto
+  <main class="max-w-[1700px] mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6">
+
+    <!-- 좌측/상단 패널: 설정 및 업로드 -->
+    <section class="lg:col-span-5 space-y-5 sm:space-y-6">
+
+      <!-- 1. 기본 출력 필드 설정 카드 -->
+      <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm">
+        <div class="flex items-center justify-between mb-3.5 sm:mb-4">
+          <div class="flex items-center gap-2">
+            <span class="w-6 h-6 rounded-full bg-emerald-700 text-white text-xs font-bold flex items-center justify-center">1</span>
+            <h2 class="font-bold text-slate-800 text-sm sm:text-base">기본 출력 필드 설정</h2>
+          </div>
+          <span class="text-xs text-slate-400">엑셀 열 연동</span>
+        </div>
+
+        <div class="space-y-3.5 sm:space-y-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Date (작업 날짜)</label>
+            <input type="date" id="workDate" class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition">
+            <p class="text-[11px] text-slate-400 mt-1">오늘 날짜가 기본 설정되며, 필요 시 변경 가능합니다.</p>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Shipping Country (출고 국가)</label>
+            <select id="shippingCountry" class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition">
+              <option value="Korea (대한민국)">Korea (대한민국)</option>
+              <option value="Japan (일본)">Japan (일본)</option>
+              <option value="USA (미국)">USA (미국)</option>
+              <option value="China (중국)">China (중국)</option>
+              <option value="Global (기타)">Global (기타)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Title (앨범 타이틀)</label>
+            <input type="text" id="albumTitle" placeholder="비워두면 캡쳐본 제목 자동 추출" class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition">
+            <p class="text-[11px] text-slate-400 mt-1">입력값이 있으면 우선 적용되며, 비워두면 캡쳐본 텍스트를 자동 반영합니다.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. 캡처 사진 업로드 카드 -->
+      <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm">
+        <div class="flex items-center justify-between mb-3.5 sm:mb-4">
+          <div class="flex items-center gap-2">
+            <span class="w-6 h-6 rounded-full bg-emerald-700 text-white text-xs font-bold flex items-center justify-center">2</span>
+            <h2 class="font-bold text-slate-800 text-sm sm:text-base">캡처 사진 업로드 (모바일 / PC)</h2>
+          </div>
+          <span class="text-xs bg-emerald-50 text-emerald-700 font-semibold px-2 py-0.5 rounded border border-emerald-200">무제한 스캔</span>
+        </div>
+
+        <div id="dropZone" class="border-2 border-dashed border-slate-300 hover:border-emerald-500 active:bg-emerald-50/40 rounded-2xl p-6 sm:p-8 text-center cursor-pointer transition bg-slate-50 hover:bg-emerald-50/20 group select-none">
+          <!-- 모바일 갤러리 다중 이미지 선택 지원 -->
+          <input type="file" id="fileInput" multiple accept="image/*" class="hidden">
+          <div class="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-105 transition">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+          </div>
+          <p class="text-sm font-semibold text-slate-800">터치하여 갤러리 선택 또는 드래그 업로드</p>
+          <p class="text-xs text-slate-400 mt-1">모바일 캡처본 여러 장 동시 선택 가능 · 15건 이상 무제한 전수 감지</p>
+        </div>
+
+        <!-- 진행 상태 바 -->
+        <div id="progressArea" class="hidden mt-4 space-y-2">
+          <div class="flex justify-between text-xs text-slate-600 font-semibold">
+            <span id="progressText">이미지 분석 중...</span>
+            <span id="progressPercent">0%</span>
+          </div>
+          <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+            <div id="progressBar" class="bg-emerald-500 h-2.5 transition-all duration-200" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- 우측/하단 패널: 추출 데이터 결과 목록 -->
+    <section class="lg:col-span-7 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col min-h-[500px]">
+      
+      <!-- 상단 액션 바 -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-4 border-b border-slate-100">
+        <div>
+          <div class="flex items-center gap-2">
+            <h2 class="font-bold text-slate-800 text-sm sm:text-base flex items-center gap-2">
+              <svg class="w-5 h-5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+              추출 데이터 결과 목록
+            </h2>
+            <span id="resultCountBadge" class="text-xs bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">0 행</span>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-1">포맷: No. | Date | Key Code | Title | Shipping Country</p>
+        </div>
+
+        <!-- 모바일 가로 배열 액션 버튼들 -->
+        <div class="flex items-center gap-2">
+          <button id="copyExcelBtn" class="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2.5 sm:py-2 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white rounded-xl text-xs font-semibold shadow-sm transition active:scale-95">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+            엑셀 복사
+          </button>
+          <button id="downloadCsvBtn" class="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2.5 sm:py-2 bg-slate-800 hover:bg-slate-900 active:bg-black text-white rounded-xl text-xs font-semibold shadow-sm transition active:scale-95">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+            CSV
+          </button>
+          <button id="clearBtn" title="전체 삭제" class="p-2.5 sm:p-2 border border-slate-200 hover:bg-red-50 hover:text-red-600 rounded-xl text-slate-400 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- 모바일 가로 스크롤 테이블 -->
+      <div class="flex-1 overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+        <table class="w-full text-left text-xs border-collapse min-w-[620px]">
+          <thead>
+            <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold">
+              <th class="py-2.5 px-3 w-12 text-center">NO.</th>
+              <th class="py-2.5 px-3 w-28">DATE</th>
+              <th class="py-2.5 px-3 min-w-[180px]">KEY CODE</th>
+              <th class="py-2.5 px-3 min-w-[180px]">TITLE</th>
+              <th class="py-2.5 px-3 w-32">SHIPPING COUNTRY</th>
+              <th class="py-2.5 px-3 w-14 text-center">삭제</th>
+            </tr>
+          </thead>
+          <tbody id="resultTableBody" class="divide-y divide-slate-100">
+            <tr id="emptyStateRow">
+              <td colspan="6" class="py-20 text-center text-slate-400">
+                <div class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-2 text-slate-300">
+                  <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                </div>
+                <p class="font-bold text-slate-600 text-sm">추출된 데이터가 없습니다</p>
+                <p class="text-xs text-slate-400 mt-0.5">캡처 사진을 업로드하면 Key Code를 자동 추출하여 표로 정리합니다.</p>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </section>
+  </main>
+
+  <script>
+    let extractedRows = [];
+    const seenKeyCodes = new Set();
+
+    // 기본 날짜 오늘로 설정
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('workDate').value = today;
+
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const progressArea = document.getElementById('progressArea');
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    const progressPercent = document.getElementById('progressPercent');
+    const resultTableBody = document.getElementById('resultTableBody');
+    const emptyStateRow = document.getElementById('emptyStateRow');
+    const resultCountBadge = document.getElementById('resultCountBadge');
+
+    // 모바일 터치 및 PC 드래그 지원
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('border-emerald-500', 'bg-emerald-50/40'); });
+    dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('border-emerald-500', 'bg-emerald-50/40'); });
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('border-emerald-500', 'bg-emerald-50/40');
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        handleImageFiles(e.dataTransfer.files);
+      }
+    });
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files.length > 0) {
+        handleImageFiles(e.target.files);
+      }
+    });
+
+    // 다중 이미지 순차 처리
+    async function handleImageFiles(files) {
+      const fileList = Array.from(files).filter(f => f.type.startsWith('image/'));
+      if (fileList.length === 0) return;
+
+      progressArea.classList.remove('hidden');
+
+      for (let i = 0; i < fileList.length; i++) {
+        const file = fileList[i];
+        progressText.innerText = `[${i + 1}/${fileList.length}] 분석 중...`;
+        
+        try {
+          const worker = await Tesseract.createWorker('eng+kor');
+          const ret = await worker.recognize(file);
+          await worker.terminate();
+
+          parseExtractedText(ret.data.text);
+        } catch (error) {
+          console.error('OCR 에러:', error);
+        }
+
+        const pct = Math.round(((i + 1) / fileList.length) * 100);
+        progressBar.style.width = `${pct}%`;
+        progressPercent.innerText = `${pct}%`;
+      }
+
+      setTimeout(() => {
+        progressArea.classList.add('hidden');
+        progressBar.style.width = '0%';
+      }, 800);
+
+      renderTable();
+      fileInput.value = '';
+    }
+
+    // 15건 이상 무제한 정규식 스캔
+    function parseExtractedText(rawText) {
+      const defaultDate = document.getElementById('workDate').value || today;
+      const defaultCountry = document.getElementById('shippingCountry').value;
+      const manualTitle = document.getElementById('albumTitle').value.trim();
+
+      // 영숫자 하이픈 형식 또는 10자리 이상 단독 키코드 전체 스캔
+      const keyCodeRegex = /\b[A-Z0-9]{4,}(?:-[A-Z0-9]{4,})+\b|\b[A-Z0-9]{12,24}\b/g;
+      const matches = rawText.match(keyCodeRegex) || [];
+
+      let resolvedTitle = manualTitle;
+      if (!resolvedTitle) {
+        const lines = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 1);
+        resolvedTitle = lines.find(l => !l.match(keyCodeRegex) && !l.includes('Key') && !l.includes('Code')) || '기본 타이틀';
+      }
+
+      matches.forEach(code => {
+        const cleanCode = code.trim();
+        if (!seenKeyCodes.has(cleanCode)) {
+          seenKeyCodes.add(cleanCode);
+          extractedRows.push({
+            date: defaultDate,
+            keyCode: cleanCode,
+            title: resolvedTitle,
+            country: defaultCountry
+          });
+        }
+      });
+    }
+
+    // 테이블 렌더링
+    function renderTable() {
+      if (extractedRows.length === 0) {
+        emptyStateRow.style.display = '';
+        resultCountBadge.innerText = '0 행';
+        return;
+      }
+
+      emptyStateRow.style.display = 'none';
+      resultCountBadge.innerText = `${extractedRows.length} 행`;
+
+      const trs = resultTableBody.querySelectorAll('tr:not(#emptyStateRow)');
+      trs.forEach(tr => tr.remove());
+
+      extractedRows.forEach((row, idx) => {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-50/80 transition';
+        tr.innerHTML = `
+          <td class="py-2.5 px-3 text-center text-slate-400 font-mono">${idx + 1}</td>
+          <td class="py-2.5 px-3 font-mono text-slate-600">${row.date}</td>
+          <td class="py-2.5 px-3 font-mono font-bold text-emerald-700 bg-emerald-50/40">${row.keyCode}</td>
+          <td class="py-2.5 px-3 text-slate-800 font-medium">${row.title}</td>
+          <td class="py-2.5 px-3 text-slate-600">${row.country}</td>
+          <td class="py-2.5 px-3 text-center">
+            <button onclick="removeRow(${idx})" class="text-slate-300 hover:text-red-500 active:text-red-600 transition p-1">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+          </td>
+        `;
+        resultTableBody.appendChild(tr);
+      });
+    }
+
+    window.removeRow = function(index) {
+      const removed = extractedRows.splice(index, 1)[0];
+      if (removed) seenKeyCodes.delete(removed.keyCode);
+      renderTable();
+    };
+
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      if (extractedRows.length === 0) return;
+      if (confirm('추출된 모든 데이터를 초기화하시겠습니까?')) {
+        extractedRows = [];
+        seenKeyCodes.clear();
+        renderTable();
+      }
+    });
+
+    // 엑셀 클립보드 복사
+    document.getElementById('copyExcelBtn').addEventListener('click', async () => {
+      if (extractedRows.length === 0) {
+        alert('복사할 데이터가 없습니다.');
+        return;
+      }
+      let tsv = "NO\tDATE\tKEY CODE\tTITLE\tSHIPPING COUNTRY\n";
+      extractedRows.forEach((r, i) => {
+        tsv += `${i + 1}\t${r.date}\t${r.keyCode}\t${r.title}\t${r.country}\n`;
+      });
+      await navigator.clipboard.writeText(tsv);
+      alert('스프레드시트에 바로 붙여넣기(Ctrl+V)할 수 있도록 복사되었습니다!');
+    });
+
+    // CSV 파일 다운로드
+    document.getElementById('downloadCsvBtn').addEventListener('click', () => {
+      if (extractedRows.length === 0) {
+        alert('다운로드할 데이터가 없습니다.');
+        return;
+      }
+      let csv = "\uFEFFNO,DATE,KEY CODE,TITLE,SHIPPING COUNTRY\n";
+      extractedRows.forEach((r, i) => {
+        csv += `"${i + 1}","${r.date}","${r.keyCode}","${r.title}","${r.country}"\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Bulk_Keycode_${today}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  </script>
+</body>
+</html>
