@@ -27,15 +27,15 @@
       <div>
         <div class="flex items-center gap-2">
           <h1 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">샘플 벌크 키값 추출</h1>
-          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">순수 키값 필터</span>
+          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">정밀 추출</span>
         </div>
-        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">상태바(시간/배터리) 및 하단 네비게이션 탭 노이즈를 완벽히 배제합니다.</p>
+        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">상태바/UI 잡음을 제거하고 10~14자리 키값을 100% 온전하게 추출합니다.</p>
       </div>
     </div>
     <div class="hidden sm:flex items-center gap-2">
       <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-        UI 노이즈 자동차단 엔진 활성
+        10~14자리 무손실 스캔 활성
       </span>
     </div>
   </header>
@@ -96,7 +96,7 @@
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
           </div>
           <p class="text-sm font-semibold text-slate-800">터치하여 갤러리 선택 또는 드래그 업로드</p>
-          <p class="text-xs text-slate-400 mt-1">상/하단 UI 노이즈 자동 제거 · 순수 키값만 100% 추출</p>
+          <p class="text-xs text-slate-400 mt-1">상하단 UI 노이즈 자동 차단 · 10~14자리 키값 전수 추출</p>
         </div>
 
         <!-- 진행 상태 바 -->
@@ -218,25 +218,26 @@
       return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     }
 
-    // UI 노이즈 차단 및 범용 키코드 정제 함수
-    function sanitizeGenericKeyCode(str) {
-      if (!str) return null;
-      let clean = str.toUpperCase().trim();
+    // 10~14자리 순수 키값 추출 및 노이즈 필터링 함수
+    function extractValidKeyCode(rawStr) {
+      if (!rawStr) return null;
+      let clean = rawStr.toUpperCase().trim();
 
-      // 한글 및 체크마크 꼬리표 강제 분리
+      // UI 텍스트 및 메타 정보 사전 차단
+      const blacklist = ['KITMANAGER', 'KITAIR', 'BULK', 'MANAGER', 'STATUS', 'SUCCESS', 'FAILED', 'MPROD', 'M_QQQ', 'M_PROD'];
+      if (blacklist.some(b => clean.includes(b))) return null;
+
+      // 끝에 붙은 한글/특수문자 제거
       clean = clean.replace(/[가-힣]+.*$/, '');
-      clean = clean.replace(/[^A-Z0-9\-]/g, '');
+      clean = clean.replace(/[^A-Z0-9]/g, '');
 
-      // 1. 하단 탭 및 버튼 UI 키워드 차단
-      const uiBlacklist = ['KITMANAGER', 'KITAIR', 'NFC', 'BULK', 'MANAGER', 'STATUS', 'SUCCESS', 'FAILED'];
-      if (uiBlacklist.some(b => clean.includes(b))) return null;
+      // 메타코드 접두사 차단
+      if (clean.startsWith('HI') || clean.startsWith('M')) return null;
 
-      // 2. 앨범 메타코드 차단
-      if (clean.startsWith('MPROD') || clean.startsWith('HI') || clean.startsWith('M_')) return null;
-
-      // 3. 10~14자리 순수 키코드 검증 (10자리 및 12자리)
-      if (/^[A-Z0-9]{10,14}$/.test(clean) || /^[A-Z0-9]{3,}(?:-[A-Z0-9]{3,})+$/.test(clean)) {
-        // 날짜 형식(YYYYMMDD) 배제
+      // [핵심 조건] 10자리 이상 14자리 이하 영숫자만 키값으로 인정
+      // (상태바 4354DIJE 등 8~9자리 노이즈는 탈락하고, 10/12자리 키값은 통과)
+      if (clean.length >= 10 && clean.length <= 14) {
+        // 날짜(20261106 등) 제외
         if (!/^\d{8,14}$/.test(clean)) {
           return clean;
         }
@@ -268,7 +269,7 @@
           const ret = await worker.recognize(file);
           const rawText = ret.data.text;
 
-          // 1. 타이틀 파싱
+          // 1. 타이틀 파싱 (바꿀 앨범 뒤 텍스트, (M 이전까지)
           let autoTitle = '';
           const match = rawText.match(/(?:바꿀\s*앨범|바꿀)\s*[:：]?\s*([^\n\r]+)/i);
           if (match && match[1]) {
@@ -276,46 +277,46 @@
             const mIdx = t.search(/[\(\[\{]\s*[Mm]/);
             if (mIdx !== -1) t = t.substring(0, mIdx).trim();
             autoTitle = t.replace(/[:\/\\\-_]+$/, '').trim();
+          } else {
+            // 바꿀 앨범 키워드가 깨진 경우 슬래시(/)가 포함된 라인 탐색
+            const lines = rawText.split(/[\r\n]+/);
+            const slashLine = lines.find(l => l.includes('/') && !l.includes('http') && !l.includes('성공'));
+            if (slashLine) {
+              let t = slashLine.replace(/.*(?:바꿀\s*앨범|바꿀)\s*[:：]?/, '').trim();
+              const mIdx = t.search(/[\(\[\{]\s*[Mm]/);
+              if (mIdx !== -1) t = t.substring(0, mIdx).trim();
+              autoTitle = t.replace(/[:\/\\\-_]+$/, '').trim();
+            }
           }
 
-          // 2. 키값 추출 (상태바 영역 무시 + 하단 탭 배제)
+          // 2. 키값 추출 (줄 순서에 의존하지 않는 안전한 전수 스캔)
           const groupKeys = [];
           const lines = rawText.split(/[\r\n]+/);
-
-          // '바꿀 앨범' 또는 '모두 성공'이 나타나기 전 상단 줄은 상태바(시간, 배터리)이므로 건너뜀
-          let passedHeader = false;
 
           for (let line of lines) {
             line = line.trim();
             if (!line) continue;
+            // 앨범명 줄이나 현재 라인은 스킵
+            if (line.includes('바꿀 앨범') || line.includes('현재:')) continue;
 
-            if (/바꿀\s*앨범|모두\s*성공/i.test(line)) {
-              passedHeader = true;
-              continue;
-            }
-
-            // 배너를 지나기 전의 상단 텍스트(시간/배터리 등)는 무조건 스킵
-            if (!passedHeader) continue;
-
-            // 메타 정보 라인은 스킵
-            if (line.includes('현재:') || /^(HI_|M_|PROD_)/i.test(line)) continue;
-
-            // 전략 A: 공백 압축 후 검증 (자간 분리된 키코드 복원)
+            // 전략 1: 줄 내에서 10~14자리 키코드 패턴 직접 탐색 (공백 압축)
             const strippedLine = line.replace(/[가-힣]+.*$/, '').trim();
             const compressed = strippedLine.replace(/\s+/g, '');
-            const candidateFromLine = sanitizeGenericKeyCode(compressed);
+            const fromLine = extractValidKeyCode(compressed);
 
-            if (candidateFromLine && !groupKeys.includes(candidateFromLine)) {
-              groupKeys.push(candidateFromLine);
+            if (fromLine && !groupKeys.includes(fromLine)) {
+              groupKeys.push(fromLine);
               continue;
             }
 
-            // 전략 B: 개별 토큰 검증
-            const words = line.split(/[\s,]+/);
-            for (let word of words) {
-              const candidate = sanitizeGenericKeyCode(word);
-              if (candidate && !groupKeys.includes(candidate)) {
-                groupKeys.push(candidate);
+            // 전략 2: 정규식을 사용해 줄 안에서 10~14자리 영숫자 블록 추출
+            const matchedTokens = strippedLine.match(/[A-Za-z0-9]{10,14}/g);
+            if (matchedTokens) {
+              for (let tok of matchedTokens) {
+                const code = extractValidKeyCode(tok);
+                if (code && !groupKeys.includes(code)) {
+                  groupKeys.push(code);
+                }
               }
             }
           }
