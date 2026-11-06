@@ -27,15 +27,15 @@
       <div>
         <div class="flex items-center gap-2">
           <h1 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">샘플 벌크 키값 추출</h1>
-          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">사진별 그룹 관리</span>
+          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">사진 중복 자동 필터</span>
         </div>
-        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">사진마다 각각 다른 타이틀을 묶음별로 쉽고 빠르게 관리합니다.</p>
+        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">동일한 사진 및 중복 키값 캡처본을 자동으로 감지하여 제외합니다.</p>
       </div>
     </div>
     <div class="hidden sm:flex items-center gap-2">
       <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-        10~14자리 키값 전수 복원 모드
+        이미지 해시 & 키값 이중 중복 방지
       </span>
     </div>
   </header>
@@ -87,7 +87,7 @@
             <span class="w-6 h-6 rounded-full bg-emerald-700 text-white text-xs font-bold flex items-center justify-center">2</span>
             <h2 class="font-bold text-slate-800 text-sm sm:text-base">캡처 사진 업로드</h2>
           </div>
-          <span class="text-xs bg-emerald-50 text-emerald-700 font-semibold px-2 py-0.5 rounded border border-emerald-200">다중 스캔</span>
+          <span class="text-xs bg-emerald-50 text-emerald-700 font-semibold px-2 py-0.5 rounded border border-emerald-200">중복 자동 차단</span>
         </div>
 
         <div id="dropZone" class="border-2 border-dashed border-slate-300 hover:border-emerald-500 active:bg-emerald-50/40 rounded-2xl p-6 sm:p-8 text-center cursor-pointer transition bg-slate-50 hover:bg-emerald-50/20 group select-none">
@@ -96,7 +96,7 @@
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
           </div>
           <p class="text-sm font-semibold text-slate-800">터치하여 갤러리 선택 또는 드래그 업로드</p>
-          <p class="text-xs text-slate-400 mt-1">드래그 없이 바로 업로드 · 사진별 카드 생성</p>
+          <p class="text-xs text-slate-400 mt-1">동일 사진/동일 키값 캡처본 자동 제외</p>
         </div>
 
         <!-- 진행 상태 바 -->
@@ -159,9 +159,9 @@
   </main>
 
   <script>
-    // 사진별 그룹 데이터 구조: [ { id, date, country, title, keyCodes: [], previewUrl } ]
     let photoGroups = [];
     const globalKeyCodes = new Set();
+    const uploadedFileHashes = new Set(); // 파일 바이너리 해시 저장소
 
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('workDate').value = today;
@@ -211,10 +211,18 @@
       }
     });
 
+    // 파일 고유 해시(SHA-256) 생성 함수 (물리적 중복 사진 즉각 감지)
+    async function calculateFileHash(file) {
+      const buffer = await file.arrayBuffer();
+      const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
     // 16진수 키코드 지능형 복원 (10~14자리)
     function repairHexToken(rawToken) {
       let t = rawToken.toUpperCase();
-      t = t.replace(/[가-힣]+.*$/, ''); // 성공/실패 꼬리표 제거
+      t = t.replace(/[가-힣]+.*$/, '');
       t = t.replace(/[^A-Z0-9]/g, '');
 
       if (t.length < 10 || t.length > 14) return null;
@@ -242,16 +250,25 @@
       progressArea.classList.remove('hidden');
       const worker = await Tesseract.createWorker(['kor', 'eng']);
 
+      let skippedDuplicateCount = 0;
+
       for (let i = 0; i < fileList.length; i++) {
         const file = fileList[i];
-        const previewUrl = URL.createObjectURL(file);
-        progressText.innerText = `[${i + 1}/${fileList.length}] ${file.name} 분석 중...`;
+        progressText.innerText = `[${i + 1}/${fileList.length}] ${file.name} 분석 및 중복 검증 중...`;
 
         try {
+          // 1차 검증: 파일 자체 바이너리 해시 검사
+          const fileHash = await calculateFileHash(file);
+          if (uploadedFileHashes.has(fileHash)) {
+            skippedDuplicateCount++;
+            continue;
+          }
+
+          const previewUrl = URL.createObjectURL(file);
           const ret = await worker.recognize(file);
           const rawText = ret.data.text;
 
-          // 1. 타이틀 기본 추론 ('바꿀 앨범' 뒤 텍스트, (M 이전까지)
+          // 타이틀 추출
           let autoTitle = '';
           const match = rawText.match(/(?:바꿀\s*앨범|바꿀)\s*[:：]?\s*([^\n\r]+)/i);
           if (match && match[1]) {
@@ -261,7 +278,7 @@
             autoTitle = t.replace(/[:\/\\\-_]+$/, '').trim();
           }
 
-          // 2. 키값 전수 추출
+          // 키값 전수 추출
           const groupKeys = [];
           const lines = rawText.split(/[\r\n]+/);
           for (let line of lines) {
@@ -269,23 +286,44 @@
             const words = line.split(/[\s,]+/);
             for (let word of words) {
               const code = repairHexToken(word);
-              if (code && !globalKeyCodes.has(code) && !groupKeys.includes(code)) {
+              if (code && !groupKeys.includes(code)) {
                 groupKeys.push(code);
-                globalKeyCodes.add(code);
               }
             }
           }
 
-          // 3. 사진 그룹 등록
-          photoGroups.push({
-            id: Date.now() + Math.random(),
-            date: document.getElementById('workDate').value || today,
-            country: getSelectedCountry(),
-            title: autoTitle || '타이틀을 입력하세요',
-            keyCodes: groupKeys,
-            previewUrl: previewUrl,
-            fileName: file.name
+          // 2차 검증: 추출된 키값이 이미 등록된 다른 사진의 키값과 100% 동일한지 검사
+          // (다시 캡처해서 파일 해시가 달라도 키값이 전부 겹치면 중복 사진으로 판단)
+          const isEntirelyDuplicate = groupKeys.length > 0 && groupKeys.every(k => globalKeyCodes.has(k));
+
+          if (isEntirelyDuplicate) {
+            skippedDuplicateCount++;
+            URL.revokeObjectURL(previewUrl);
+            continue;
+          }
+
+          // 신규 유효 키값만 글로벌 Set에 등록
+          const uniqueKeysForThisGroup = [];
+          groupKeys.forEach(k => {
+            if (!globalKeyCodes.has(k)) {
+              globalKeyCodes.add(k);
+              uniqueKeysForThisGroup.push(k);
+            }
           });
+
+          if (uniqueKeysForThisGroup.length > 0) {
+            uploadedFileHashes.add(fileHash);
+            photoGroups.push({
+              id: Date.now() + Math.random(),
+              fileHash: fileHash,
+              date: document.getElementById('workDate').value || today,
+              country: getSelectedCountry(),
+              title: autoTitle || '타이틀을 입력하세요',
+              keyCodes: uniqueKeysForThisGroup,
+              previewUrl: previewUrl,
+              fileName: file.name
+            });
+          }
 
         } catch (error) {
           console.error('분석 에러:', error);
@@ -305,9 +343,12 @@
 
       renderPhotoGroups();
       fileInput.value = '';
+
+      if (skippedDuplicateCount > 0) {
+        alert(`중복된 사진 ${skippedDuplicateCount}건은 자동으로 제외되었습니다.`);
+      }
     }
 
-    // 그룹 카드 렌더링
     function renderPhotoGroups() {
       if (photoGroups.length === 0) {
         emptyState.style.display = '';
@@ -317,7 +358,6 @@
 
       emptyState.style.display = 'none';
 
-      // 기존 동적 카드 제거
       const cards = photoGroupContainer.querySelectorAll('.photo-group-card');
       cards.forEach(c => c.remove());
 
@@ -351,7 +391,7 @@
           <!-- 키값 리스트 -->
           <div class="bg-white rounded-lg border border-slate-200 divide-y divide-slate-100 overflow-hidden">
             ${group.keyCodes.length === 0 ? `
-              <div class="p-3 text-center text-xs text-slate-400">추출된 10~14자리 키값이 없습니다.</div>
+              <div class="p-3 text-center text-xs text-slate-400">추출된 신규 10~14자리 키값이 없습니다.</div>
             ` : group.keyCodes.map((code, kIdx) => `
               <div class="flex items-center justify-between px-3.5 py-2 text-xs">
                 <div class="flex items-center gap-3">
@@ -373,23 +413,21 @@
       totalKeyCountBadge.innerText = `총 ${grandTotalKeys}건`;
     }
 
-    // 그룹 타이틀 실시간 연동
     window.updateGroupTitle = function(gIdx, newTitle) {
       if (photoGroups[gIdx]) {
         photoGroups[gIdx].title = newTitle;
       }
     };
 
-    // 사진 1장 전체 삭제
     window.removeGroup = function(gIdx) {
       const removed = photoGroups.splice(gIdx, 1)[0];
       if (removed) {
+        uploadedFileHashes.delete(removed.fileHash);
         removed.keyCodes.forEach(c => globalKeyCodes.delete(c));
       }
       renderPhotoGroups();
     };
 
-    // 키값 1개 개별 삭제
     window.removeSingleKey = function(gIdx, kIdx) {
       if (photoGroups[gIdx]) {
         const code = photoGroups[gIdx].keyCodes.splice(kIdx, 1)[0];
@@ -398,17 +436,16 @@
       }
     };
 
-    // 전체 초기화
     document.getElementById('clearBtn').addEventListener('click', () => {
       if (photoGroups.length === 0) return;
       if (confirm('모든 사진과 추출 데이터를 초기화하시겠습니까?')) {
         photoGroups = [];
         globalKeyCodes.clear();
+        uploadedFileHashes.clear();
         renderPhotoGroups();
       }
     });
 
-    // 최종 통합 엑셀 클립보드 복사 (5개 컬럼 정규 포맷)
     document.getElementById('copyExcelBtn').addEventListener('click', async () => {
       let totalKeys = 0;
       photoGroups.forEach(g => totalKeys += g.keyCodes.length);
@@ -430,7 +467,6 @@
       alert(`총 ${totalKeys}건의 데이터가 엑셀에 바로 붙여넣을 수 있도록 복사되었습니다!`);
     });
 
-    // 최종 통합 CSV 다운로드
     document.getElementById('downloadCsvBtn').addEventListener('click', () => {
       let totalKeys = 0;
       photoGroups.forEach(g => totalKeys += g.keyCodes.length);
