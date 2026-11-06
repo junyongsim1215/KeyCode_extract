@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>쥬얼 패킹리스트 - 키코드 데이터 추출기</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Tesseract.js v5 (클라이언트 로컬 고정밀 OCR) -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              200: '#bbf7d0',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+              800: '#2e7d32',
+              900: '#1e5223',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    body {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+      background-color: #f6f8f7;
+      color: #1f2937;
+    }
+    .custom-scroll::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: #f1f5f3;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between">
+
+  <!-- 상단 네비게이션 헤더 -->
+  <header class="bg-white border-b border-gray-200 sticky top-0 z-30 shadow-xs">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-emerald-800 flex items-center justify-center text-white shadow-sm font-bold text-lg">
+          J
+        </div>
+        <div>
+          <h1 class="text-base sm:text-lg font-bold text-gray-900 tracking-tight flex items-center gap-2">
+            쥬얼 패킹리스트
+            <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium">키코드 자동 추출기</span>
+          </h1>
+          <p class="text-xs text-gray-500 hidden sm:block">스크린샷 내 Key Code를 자동 추출하여 스프레드시트 5컬럼 포맷으로 변환합니다.</p>
+        </div>
+      </div>
+      <div class="flex items-center space-x-3 text-xs">
+        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 font-semibold border border-emerald-200">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          무제한 자동 중복 필터링 활성
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <!-- 메인 작업 영역 -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      
+      <!-- 좌측 패널 (5 cols): 설정 및 업로드 -->
+      <div class="lg:col-span-5 space-y-5">
+        
+        <!-- 1. 기본 메타데이터 설정 카드 -->
+        <div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+          <div class="flex items-center justify-between pb-3 border-b border-gray-100">
+            <h2 class="font-bold text-gray-800 text-sm flex items-center gap-2">
+              <span class="w-5 h-5 rounded-full bg-emerald-800 text-white flex items-center justify-center text-xs font-bold">1</span>
+              기본 출력 필드 설정
+            </h2>
+            <span class="text-[11px] text-gray-400">엑셀 열 연동</span>
+          </div>
+
+          <div class="space-y-4 mt-4 text-xs">
+            <!-- Date 설정 -->
+            <div>
+              <label class="block font-semibold text-gray-700 mb-1">Date (작업 날짜)</label>
+              <input type="date" id="workDate" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-gray-50 focus:bg-white transition text-xs font-medium" />
+              <p class="text-[11px] text-gray-400 mt-1">오늘 날짜가 기본 설정되며, 필요 시 변경 가능합니다.</p>
+            </div>
+
+            <!-- Shipping Country 선택 -->
+            <div>
+              <label class="block font-semibold text-gray-700 mb-1">Shipping Country (출고 국가)</label>
+              <select id="shippingCountry" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-gray-50 focus:bg-white text-xs font-medium transition cursor-pointer">
+                <option value="Korea" selected>Korea (대한민국)</option>
+                <option value="Japan">Japan (일본)</option>
+                <option value="China">China (중국)</option>
+                <option value="US">US (미국)</option>
+                <option value="Taiwan">Taiwan (대만)</option>
+                <option value="Hong Kong">Hong Kong (홍콩)</option>
+                <option value="Global">Global (글로벌 기타)</option>
+              </select>
+            </div>
+
+            <!-- Title 설정 (자동 인식 및 수동 덮어쓰기 지원) -->
+            <div>
+              <label class="block font-semibold text-gray-700 mb-1">
+                Title (앨범 타이틀)
+              </label>
+              <input type="text" id="manualTitle" placeholder="스크린샷 분석 시 자동 추출되며, 직접 수정도 가능합니다" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600 text-xs bg-gray-50 focus:bg-white transition">
+              <p class="text-[11px] text-gray-400 mt-1">입력된 값이 있으면 우선 적용되며, 비워두면 캡처본의 앨범명을 자동 추출합니다.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. 무제한 다중 이미지 업로드 카드 -->
+        <div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+          <div class="flex items-center justify-between pb-3 border-b border-gray-100">
+            <h2 class="font-bold text-gray-800 text-sm flex items-center gap-2">
+              <span class="w-5 h-5 rounded-full bg-emerald-800 text-white flex items-center justify-center text-xs font-bold">2</span>
+              캡처 사진 업로드 (Android / iOS)
+            </h2>
+            <span class="text-[11px] px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-semibold border border-emerald-100">무제한 다중 지원</span>
+          </div>
+
+          <div class="mt-4">
+            <div id="dropZone" class="border-2 border-dashed border-gray-300 hover:border-emerald-600 rounded-xl p-6 text-center cursor-pointer bg-gray-50/50 hover:bg-emerald-50/30 transition flex flex-col items-center justify-center relative">
+              <input type="file" id="fileInput" multiple accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+              <div class="w-12 h-12 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center mb-2">
+                <i class="fa-solid fa-cloud-arrow-up text-xl"></i>
+              </div>
+              <p class="text-xs font-bold text-gray-800">스크린샷을 드래그하거나 클릭하여 업로드</p>
+              <p class="text-[11px] text-gray-400 mt-1">여러 장 동시 선택 가능 · 긴 스크롤 캡처 전수 스캔</p>
+            </div>
+          </div>
+
+          <!-- 실시간 프로그레스 바 인디케이터 -->
+          <div id="statusContainer" class="hidden mt-4 p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs">
+            <div class="flex items-center justify-between font-semibold text-emerald-900 mb-1.5">
+              <span id="statusText" class="flex items-center gap-1.5">
+                <i class="fa-solid fa-circle-notch fa-spin text-emerald-700"></i> 이미지 고해상도 분석 중...
+              </span>
+              <span id="statusPercent">0%</span>
+            </div>
+            <div class="w-full bg-emerald-200 h-2 rounded-full overflow-hidden">
+              <div id="progressBar" class="bg-emerald-700 h-2 transition-all duration-200" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <!-- 빠른 테스트용 샘플 버튼 -->
+          <div class="mt-4 pt-3 border-t border-gray-100">
+            <span class="text-[11px] text-gray-500 font-semibold block mb-2">테스트용 샘플 데이터 즉시 로드:</span>
+            <div class="grid grid-cols-3 gap-1.5">
+              <button onclick="loadSample(2)" class="px-2 py-1.5 text-[11px] bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition text-center truncate">
+                안드로이드 3건
+              </button>
+              <button onclick="loadSample(3)" class="px-2 py-1.5 text-[11px] bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-lg font-semibold transition text-center truncate">
+                iOS 5건 전체
+              </button>
+              <button onclick="loadSample(99)" class="px-2 py-1.5 text-[11px] bg-purple-100 hover:bg-purple-200 text-purple-800 rounded-lg font-bold transition text-center truncate" title="15건 대량 및 중복 필터링 테스트">
+                15건+중복 테스트
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 우측 패널 (7 cols): 결과 데이터 시트 및 액션 -->
+      <div class="lg:col-span-7 space-y-5">
+        
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col min-h-[560px]">
+          
+          <!-- 카드 헤더 & 버튼 툴바 -->
+          <div class="p-4 border-b border-gray-200 bg-gray-50/60 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div class="flex items-center gap-2">
+                <h3 class="text-sm font-bold text-gray-900 flex items-center gap-1.5">
+                  <i class="fa-solid fa-table-list text-emerald-700"></i>
+                  추출 데이터 결과 목록
+                </h3>
+                <span id="rowCountBadge" class="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">0 행</span>
+                <span id="dupAlertBadge" class="hidden text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-semibold border border-amber-200"></span>
+              </div>
+              <p class="text-xs text-gray-500 mt-0.5">4번 사진 엑셀 규격 일치: No. | Date | Key Code | Title | Shipping Country</p>
+            </div>
+
+            <!-- 액션 버튼군 -->
+            <div class="flex items-center gap-2">
+              <button id="btnCopyExcel" onclick="copyExcelFormat()" class="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition active:scale-95">
+                <i class="fa-solid fa-clipboard"></i>
+                엑셀 복사 (스프레드시트용)
+              </button>
+              <button onclick="downloadCSV()" class="px-3 py-1.5 bg-gray-800 hover:bg-gray-900 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition">
+                <i class="fa-solid fa-file-csv"></i>
+                CSV 다운로드
+              </button>
+              <button onclick="clearAllData()" class="px-2.5 py-1.5 border border-gray-300 hover:bg-red-50 hover:text-red-600 rounded-lg text-xs font-medium text-gray-600 transition" title="목록 비우기">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- 테이블 뷰 (4번 사진 규격 완벽 일치) -->
+          <div class="overflow-x-auto custom-scroll flex-1 max-h-[520px]">
+            <table class="w-full text-left border-collapse text-xs" id="dataTable">
+              <thead class="bg-gray-100 text-gray-700 uppercase font-bold sticky top-0 border-b border-gray-200 z-10 select-none">
+                <tr>
+                  <th class="py-2.5 px-3 w-14 text-center border-r border-gray-200">No.</th>
+                  <th class="py-2.5 px-3 w-28 border-r border-gray-200">Date</th>
+                  <th class="py-2.5 px-3 w-40 border-r border-gray-200 font-mono">Key Code</th>
+                  <th class="py-2.5 px-4 border-r border-gray-200">Title</th>
+                  <th class="py-2.5 px-3 w-32 border-r border-gray-200">Shipping Country</th>
+                  <th class="py-2.5 px-2 w-12 text-center">삭제</th>
+                </tr>
+              </thead>
+              <tbody id="dataTableBody" class="divide-y divide-gray-200 bg-white text-gray-800">
+                <!-- 동적 렌더링 -->
+              </tbody>
+            </table>
+
+            <!-- 빈 상태 안내 -->
+            <div id="emptyState" class="py-24 flex flex-col items-center justify-center text-center p-6 text-gray-400">
+              <div class="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-400 mb-3">
+                <i class="fa-regular fa-image text-3xl"></i>
+              </div>
+              <p class="font-bold text-gray-700 text-sm">추출된 데이터가 없습니다</p>
+              <p class="text-xs mt-1 text-gray-400 max-w-sm leading-relaxed">
+                좌측에 캡처 이미지를 업로드하면 빨간 박스 위치의 Key Code를 자동 추출하여 중복 없이 표로 정리합니다.
+              </p>
+            </div>
+          </div>
+
+          <!-- 테이블 하단 바 -->
+          <div class="p-3 border-t border-gray-200 bg-gray-50 flex flex-wrap items-center justify-between text-xs text-gray-500 gap-2">
+            <div class="flex items-center gap-3">
+              <button onclick="applyDateToAll()" class="hover:text-emerald-800 underline font-medium">전체 날짜 일괄 적용</button>
+              <button onclick="applyCountryToAll()" class="hover:text-emerald-800 underline font-medium">전체 출고국가 일괄 적용</button>
+            </div>
+            <div>
+              각 셀의 텍스트를 클릭하여 바로 수정할 수 있습니다.
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+
+  <!-- 토스트 알림창 -->
+  <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-16 opacity-0 transition-all duration-300 pointer-events-none bg-gray-900 text-white text-xs py-3 px-4 rounded-xl shadow-xl flex items-center gap-2">
+    <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400"></i>
+    <span id="toastMsg">메시지</span>
+  </div>
+
+  <footer class="bg-white border-t border-gray-200 py-3 text-center text-xs text-gray-400">
+    Jewel Packing List Extractor • 스마트 키코드 전수 스캔 및 엑셀 포맷 복사기
+  </footer>
+
+  <script>
+    // 오늘 날짜(YYYY-MM-DD)를 기본값으로 자동 바인딩
+    function getTodayString() {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    let extractedRows = [];
+    let cumulativeDuplicateCount = 0;
+
+    window.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('workDate').value = getTodayString();
+      setupDragAndDrop();
+    });
+
+    // 드래그 앤 드롭 및 다중 파일 선택 설정
+    function setupDragAndDrop() {
+      const dropZone = document.getElementById('dropZone');
+      const fileInput = document.getElementById('fileInput');
+
+      ['dragenter', 'dragover'].forEach(name => {
+        dropZone.addEventListener(name, (e) => {
+          e.preventDefault();
+          dropZone.classList.add('border-emerald-600', 'bg-emerald-50/50');
+        });
+      });
+
+      ['dragleave', 'drop'].forEach(name => {
+        dropZone.addEventListener(name, (e) => {
+          e.preventDefault();
+          dropZone.classList.remove('border-emerald-600', 'bg-emerald-50/50');
+        });
+      });
+
+      dropZone.addEventListener('drop', (e) => {
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          processMultipleImages(Array.from(e.dataTransfer.files));
+        }
+      });
+
+      fileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files.length > 0) {
+          processMultipleImages(Array.from(e.target.files));
+        }
+      });
+    }
+
+    // 캔버스 전처리: 해상도 2.2배 확대 및 대비(Binarization) 처리
+    async function preprocessImage(file) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          
+          const scale = 2.2;
+          canvas.width = img.width * scale;
+          canvas.height = img.height * scale;
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const d = imgData.data;
+          for (let i = 0; i < d.length; i += 4) {
+            const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+            // 텍스트는 뚜렷하게 남기고 연한 회색 배경선은 소거
+            const val = gray > 180 ? 255 : (gray < 85 ? 0 : gray);
+            d[i] = d[i+1] = d[i+2] = val;
+          }
+          ctx.putImageData(imgData, 0, 0);
+          resolve(canvas.toDataURL('image/png'));
+        };
+        img.src = URL.createObjectURL(file);
+      });
+    }
+
+    // 다중 이미지 순차 큐 처리
+    async function processMultipleImages(files) {
+      const statusContainer = document.getElementById('statusContainer');
+      const progressBar = document.getElementById('progressBar');
+      const statusPercent = document.getElementById('statusPercent');
+      const statusText = document.getElementById('statusText');
+
+      statusContainer.classList.remove('hidden');
+
+      const worker = await Tesseract.createWorker('eng+kor');
+      const totalFiles = files.length;
+
+      for (let index = 0; index < totalFiles; index++) {
+        const file = files[index];
+        statusText.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i> [${index + 1}/${totalFiles}] 스크린샷 정밀 분석 중...`;
+        
+        try {
+          const processedDataUrl = await preprocessImage(file);
+          
+          const { data: { text } } = await worker.recognize(processedDataUrl, {
+            logger: m => {
+              if (m.status === 'recognizing text') {
+                const fileProgress = m.progress;
+                const totalProgress = Math.floor(((index + fileProgress) / totalFiles) * 100);
+                progressBar.style.width = `${totalProgress}%`;
+                statusPercent.innerText = `${totalProgress}%`;
+              }
+            }
+          });
+
+          parseExtractedOCRText(text, file.name);
+
+        } catch (err) {
+          console.error(`Error processing file ${file.name}:`, err);
+        }
+      }
+
+      await worker.terminate();
+
+      progressBar.style.width = '100%';
+      statusPercent.innerText = '100%';
+      statusText.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-700 mr-2"></i> 총 ${totalFiles}개 파일 추출 완료!`;
+      setTimeout(() => statusContainer.classList.add('hidden'), 2500);
+      document.getElementById('fileInput').value = '';
+    }
+
+    // OCR 텍스트 정밀 파싱 및 전역 중복 제거 로직
+    function parseExtractedOCRText(rawText, filename = '') {
+      const lines = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      
+      // Title 추출 (상단 '바꿀 앨범:' 뒤 문자열)
+      let detectedTitle = "";
+      for (const line of lines) {
+        if (line.includes('바꿀 앨범') || line.includes('앨범:')) {
+          const matched = line.match(/(?:바꿀\s*앨범\s*[:;]\s*)([^\(\n\r]+)/);
+          if (matched && matched[1]) {
+            detectedTitle = matched[1].trim();
+            break;
+          }
+        }
+      }
+
+      if (detectedTitle && !document.getElementById('manualTitle').value) {
+        document.getElementById('manualTitle').value = detectedTitle;
+      }
+
+      const currentTitle = document.getElementById('manualTitle').value || detectedTitle || "미지정 타이틀";
+      const currentDate = document.getElementById('workDate').value || getTodayString();
+      const currentCountry = document.getElementById('shippingCountry').value;
+
+      // Key Code 추출: 10~12자리 대문자 16진수 문자열 전수 스캔
+      const detectedKeys = [];
+      const hexRegex = /\b[0-9A-Fa-f]{10,12}\b/g;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        // 아랫줄의 '현재: HI_...', '현재: M_QQQ...' 및 식별 태그는 키코드에서 배제
+        if (line.includes('현재') || line.includes('HI_') || line.includes('M_PROD') || line.includes('M_QQQ')) {
+          continue;
+        }
+
+        const matches = line.match(hexRegex);
+        if (matches) {
+          matches.forEach(m => {
+            const clean = m.toUpperCase().trim();
+            if (!detectedKeys.includes(clean)) {
+              detectedKeys.push(clean);
+            }
+          });
+        }
+      }
+
+      // 전역 중복 검증 및 유니크 병합 (Unique Key Code 보장)
+      detectedKeys.forEach(keyCode => {
+        const isExisting = extractedRows.some(row => row.keyCode === keyCode);
+        if (isExisting) {
+          cumulativeDuplicateCount++;
+        } else {
+          extractedRows.push({
+            id: crypto.randomUUID(),
+            date: currentDate,
+            keyCode: keyCode,
+            title: currentTitle,
+            country: currentCountry
+          });
+        }
+      });
+
+      renderTable();
+    }
+
+    // 테이블 렌더링
+    function renderTable() {
+      const tbody = document.getElementById('dataTableBody');
+      const emptyState = document.getElementById('emptyState');
+      const rowCountBadge = document.getElementById('rowCountBadge');
+      const dupBadge = document.getElementById('dupAlertBadge');
+
+      if (cumulativeDuplicateCount > 0) {
+        dupBadge.innerText = `중복 ${cumulativeDuplicateCount}건 자동 제외됨`;
+        dupBadge.classList.remove('hidden');
+      } else {
+        dupBadge.classList.add('hidden');
+      }
+
+      tbody.innerHTML = '';
+
+      if (extractedRows.length === 0) {
+        emptyState.classList.remove('hidden');
+        rowCountBadge.textContent = '0 행';
+      } else {
+        emptyState.classList.add('hidden');
+        rowCountBadge.textContent = `${extractedRows.length} 행`;
+
+        extractedRows.forEach((row, index) => {
+          const tr = document.createElement('tr');
+          tr.className = "hover:bg-emerald-50/40 transition-colors border-b border-gray-100 group";
+          tr.innerHTML = `
+            <td class="py-2.5 px-3 text-center text-gray-500 font-sans border-r border-gray-100">${index + 1}</td>
+            <td class="py-2 px-3 border-r border-gray-100">
+              <input type="text" value="${escapeHtml(row.date)}" onchange="updateCell('${row.id}', 'date', this.value)" class="w-full bg-transparent focus:bg-white border-transparent focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 rounded px-1.5 py-0.5 text-xs text-gray-700 font-mono">
+            </td>
+            <td class="py-2 px-3 border-r border-gray-100">
+              <input type="text" value="${escapeHtml(row.keyCode)}" onchange="updateCell('${row.id}', 'keyCode', this.value)" class="w-full bg-transparent focus:bg-white border-transparent focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 rounded px-1.5 py-0.5 text-xs font-mono font-bold text-emerald-800 uppercase tracking-wider">
+            </td>
+            <td class="py-2 px-4 border-r border-gray-100">
+              <input type="text" value="${escapeHtml(row.title)}" onchange="updateCell('${row.id}', 'title', this.value)" class="w-full bg-transparent focus:bg-white border-transparent focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 rounded px-1.5 py-0.5 text-xs text-gray-800">
+            </td>
+            <td class="py-2 px-3 border-r border-gray-100">
+              <input type="text" value="${escapeHtml(row.country)}" onchange="updateCell('${row.id}', 'country', this.value)" class="w-full bg-transparent focus:bg-white border-transparent focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 rounded px-1.5 py-0.5 text-xs font-semibold text-gray-700">
+            </td>
+            <td class="py-2 px-2 text-center">
+              <button onclick="deleteRow('${row.id}')" title="삭제" class="opacity-40 group-hover:opacity-100 hover:text-red-600 p-1 rounded transition">
+                <i class="fa-solid fa-xmark text-sm"></i>
+              </button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+    }
+
+    function updateCell(id, field, value) {
+      const target = extractedRows.find(r => r.id === id);
+      if (target) {
+        target[field] = value;
+      }
+    }
+
+    function deleteRow(id) {
+      extractedRows = extractedRows.filter(r => r.id !== id);
+      renderTable();
+    }
+
+    function clearAllData() {
+      if (extractedRows.length === 0) return;
+      if (confirm('모든 추출 목록을 비우시겠습니까?')) {
+        extractedRows = [];
+        cumulativeDuplicateCount = 0;
+        renderTable();
+        showToast('전체 목록이 초기화되었습니다.');
+      }
+    }
+
+    function applyDateToAll() {
+      const dateVal = document.getElementById('workDate').value;
+      if (!dateVal) return;
+      extractedRows.forEach(r => r.date = dateVal);
+      renderTable();
+      showToast(`모든 행의 Date가 ${dateVal}로 일괄 적용되었습니다.`);
+    }
+
+    function applyCountryToAll() {
+      const countryVal = document.getElementById('shippingCountry').value;
+      extractedRows.forEach(r => r.country = countryVal);
+      renderTable();
+      showToast(`모든 행의 Shipping Country가 ${countryVal}로 일괄 적용되었습니다.`);
+    }
+
+    // 엑셀/스프레드시트 1클릭 복사 (TSV 규격: No., Date, Key Code, Title, Shipping Country)
+    function copyExcelFormat() {
+      if (extractedRows.length === 0) {
+        showToast('복사할 데이터가 없습니다. 이미지를 먼저 업로드해주세요.', 'alert');
+        return;
+      }
+
+      let tsv = "No.\tDate\tKey Code\tTitle\tShipping Country\n";
+      extractedRows.forEach((r, idx) => {
+        tsv += `${idx + 1}\t${r.date}\t${r.keyCode}\t${r.title}\t${r.country}\n`;
+      });
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(tsv).then(() => {
+          showToast('엑셀 형식으로 복사되었습니다! 시트에 바로 붙여넣기(Ctrl+V) 하세요.');
+        }).catch(() => fallbackCopy(tsv));
+      } else {
+        fallbackCopy(tsv);
+      }
+    }
+
+    function fallbackCopy(text) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showToast('클립보드에 복사되었습니다.');
+    }
+
+    // CSV 파일 다운로드 (Excel 한글 깨짐 방지 UTF-8 BOM 탑재)
+    function downloadCSV() {
+      if (extractedRows.length === 0) {
+        showToast('다운로드할 데이터가 없습니다.', 'alert');
+        return;
+      }
+
+      let csvContent = "\uFEFFNo.,Date,Key Code,Title,Shipping Country\r\n";
+      extractedRows.forEach((r, idx) => {
+        const cleanTitle = `"${r.title.replace(/"/g, '""')}"`;
+        csvContent += `${idx + 1},${r.date},${r.keyCode},${cleanTitle},${r.country}\r\n`;
+      });
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const filename = `Jewel_Packing_List_${getTodayString()}.csv`;
+      link.setAttribute("href", url);
+      link.setAttribute("download", filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast(`${filename} 파일이 다운로드되었습니다.`);
+    }
+
+    // 빠른 테스트 샘플 로드 (안드로이드 3건, iOS 5건 전체, 15건 대량+중복)
+    function loadSample(type) {
+      const curDate = document.getElementById('workDate').value || getTodayString();
+      const curCountry = document.getElementById('shippingCountry').value;
+
+      if (type === 2) {
+        const sample = [
+          { date: curDate, keyCode: 'B1D2F2E6C3', title: '김건모 / The Best Of Remastered', country: curCountry },
+          { date: curDate, keyCode: 'C41BD993B7', title: '김건모 / The Best Of Remastered', country: curCountry },
+          { date: curDate, keyCode: '9C7D1A2E56', title: '김건모 / The Best Of Remastered', country: curCountry }
+        ];
+        addUniqueRows(sample, '김건모 / The Best Of Remastered');
+        showToast('안드로이드 3건 샘플이 로드되었습니다.');
+      } else if (type === 3) {
+        const sample = [
+          { date: curDate, keyCode: '959498FF9905', title: '윤새 (Yunsae) / Deja Vu', country: curCountry },
+          { date: curDate, keyCode: '7864D9F3F70D', title: '윤새 (Yunsae) / Deja Vu', country: curCountry },
+          { date: curDate, keyCode: 'DD85861ADC05', title: '윤새 (Yunsae) / Deja Vu', country: curCountry },
+          { date: curDate, keyCode: 'B5B6F363B407', title: '윤새 (Yunsae) / Deja Vu', country: curCountry },
+          { date: curDate, keyCode: '75B30453DB04', title: '윤새 (Yunsae) / Deja Vu', country: curCountry }
+        ];
+        addUniqueRows(sample, '윤새 (Yunsae) / Deja Vu');
+        showToast('iOS 5건 전체 샘플이 로드되었습니다.');
+      } else if (type === 99) {
+        const bulkSample = [
+          { date: curDate, keyCode: '0B1C95A1F90C', title: '勇晴 / Introduction', country: curCountry },
+          { date: curDate, keyCode: '41EC9014D106', title: 'OCHIYO / Rumination', country: curCountry },
+          { date: curDate, keyCode: '82AA4F711B0D', title: 'cocoon exs / smile', country: curCountry },
+          { date: curDate, keyCode: 'CDF081483406', title: 'Ma\'Scar\'Piece / Fly 2 Zenith', country: curCountry },
+          { date: curDate, keyCode: 'FCDBBFE37050', title: '숲속100층짜리 집', country: curCountry },
+          { date: curDate, keyCode: '21B17E5E5103', title: '숲속100층짜리 집', country: curCountry },
+          { date: curDate, keyCode: '959498FF9905', title: '윤새 (Yunsae) / Deja Vu', country: curCountry },
+          { date: curDate, keyCode: '7864D9F3F70D', title: '윤새 (Yunsae) / Deja Vu', country: curCountry },
+          { date: curDate, keyCode: 'DD85861ADC05', title: '윤새 (Yunsae) / Deja Vu', country: curCountry },
+          { date: curDate, keyCode: 'B5B6F363B407', title: '윤새 (Yunsae) / Deja Vu', country: curCountry },
+          { date: curDate, keyCode: '75B30453DB04', title: '윤새 (Yunsae) / Deja Vu', country: curCountry },
+          { date: curDate, keyCode: 'B1D2F2E6C300', title: '김건모 / Remastered', country: curCountry },
+          { date: curDate, keyCode: 'C41BD993B700', title: '김건모 / Remastered', country: curCountry },
+          { date: curDate, keyCode: 'A1B2C3D4E5F6', title: 'New Track Special', country: curCountry },
+          { date: curDate, keyCode: 'F9E8D7C6B5A4', title: 'New Track Special', country: curCountry },
+          // 의도적인 중복 데이터 4건
+          { date: curDate, keyCode: '0B1C95A1F90C', title: '勇晴 / Introduction', country: curCountry },
+          { date: curDate, keyCode: '41EC9014D106', title: 'OCHIYO / Rumination', country: curCountry },
+          { date: curDate, keyCode: '959498FF9905', title: '윤새 (Yunsae) / Deja Vu', country: curCountry },
+          { date: curDate, keyCode: '75B30453DB04', title: '윤새 (Yunsae) / Deja Vu', country: curCountry }
+        ];
+        addUniqueRows(bulkSample, '통합 배치 작업');
+        showToast('대량 데이터가 로드되었습니다 (중복 4건 자동 필터링).');
+      }
+    }
+
+    function addUniqueRows(rows, title) {
+      if (title && !document.getElementById('manualTitle').value) {
+        document.getElementById('manualTitle').value = title;
+      }
+      rows.forEach(r => {
+        if (!extractedRows.some(item => item.keyCode === r.keyCode)) {
+          extractedRows.push({
+            id: crypto.randomUUID(),
+            ...r
+          });
+        } else {
+          cumulativeDuplicateCount++;
+        }
+      });
+      renderTable();
+    }
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      return String(text)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    let toastTimeout;
+    function showToast(msg, type = 'success') {
+      const toast = document.getElementById('toast');
+      const toastMsg = document.getElementById('toastMsg');
+      const toastIcon = document.getElementById('toastIcon');
+
+      toastMsg.textContent = msg;
+
+      if (type === 'alert') {
+        toastIcon.className = 'fa-solid fa-circle-exclamation text-amber-400';
+      } else {
+        toastIcon.className = 'fa-solid fa-circle-check text-emerald-400';
+      }
+
+      toast.classList.remove('translate-y-16', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+
+      clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => {
+        toast.classList.remove('translate-y-0', 'opacity-100');
+        toast.classList.add('translate-y-16', 'opacity-0');
+      }, 3000);
+    }
+  </script>
+</body>
+</html>
