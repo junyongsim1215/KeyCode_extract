@@ -27,15 +27,15 @@
       <div>
         <div class="flex items-center gap-2">
           <h1 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">샘플 벌크 키값 추출</h1>
-          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">정밀 추출</span>
+          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">콜아웃 블록 감지</span>
         </div>
-        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">상태바/UI 잡음을 제거하고 10~14자리 키값을 100% 온전하게 추출합니다.</p>
+        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">하단 블록을 픽셀 단위로 자동 탐지하여 8자리 이상 키값을 100% 전수 추출합니다.</p>
       </div>
     </div>
     <div class="hidden sm:flex items-center gap-2">
       <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-        10~14자리 무손실 스캔 활성
+        8자리+ 콜아웃 자동 분할 모드
       </span>
     </div>
   </header>
@@ -96,13 +96,13 @@
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
           </div>
           <p class="text-sm font-semibold text-slate-800">터치하여 갤러리 선택 또는 드래그 업로드</p>
-          <p class="text-xs text-slate-400 mt-1">상하단 UI 노이즈 자동 차단 · 10~14자리 키값 전수 추출</p>
+          <p class="text-xs text-slate-400 mt-1">하단 콜아웃 블록만 크롭 · 8자리 이상 전수 스캔</p>
         </div>
 
         <!-- 진행 상태 바 -->
         <div id="progressArea" class="hidden mt-4 space-y-2">
           <div class="flex justify-between text-xs text-slate-600 font-semibold">
-            <span id="progressText">이미지 분석 중...</span>
+            <span id="progressText">콜아웃 블록 탐지 및 분석 중...</span>
             <span id="progressPercent">0%</span>
           </div>
           <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
@@ -218,27 +218,108 @@
       return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     }
 
-    // 10~14자리 순수 키값 추출 및 노이즈 필터링 함수
-    function extractValidKeyCode(rawStr) {
-      if (!rawStr) return null;
-      let clean = rawStr.toUpperCase().trim();
+    function loadImage(file) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
 
-      // UI 텍스트 및 메타 정보 사전 차단
+    // [핵심] 상하단 콜아웃 블록의 실제 픽셀 경계선을 자동 감지하여 캔버스 크롭
+    function detectAndCropBlocks(img) {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const w = img.width;
+      const h = img.height;
+      canvas.width = w;
+      canvas.height = h;
+      ctx.drawImage(img, 0, 0);
+
+      const imgData = ctx.getImageData(0, 0, w, h);
+      const data = imgData.data;
+
+      // 이미지 중심 x축 기준으로 상단 배너 블록과 하단 키값 블록 사이의 빈 간격(배경색)을 감지
+      const midX = Math.floor(w / 2);
+      let topBannerStartY = -1;
+      let topBannerEndY = -1;
+      let bottomListStartY = -1;
+
+      // 1. 위에서 아래로 스캔하여 상단 배너 블록의 시작/끝 지점 탐색
+      for (let y = Math.floor(h * 0.05); y < Math.floor(h * 0.40); y++) {
+        const idx = (y * w + midX) * 4;
+        const r = data[idx], g = data[idx + 1], b = data[idx + 2];
+
+        // 회색/흰색 배경(#F2F2F7 등)이 아닌 배너 색상(연두, 보라 등 채도가 있는 색) 감지
+        const isColored = Math.abs(r - g) > 15 || Math.abs(g - b) > 15 || Math.abs(r - b) > 15;
+        if (isColored) {
+          if (topBannerStartY === -1) topBannerStartY = y;
+          topBannerEndY = y;
+        } else {
+          if (topBannerEndY !== -1 && (y - topBannerEndY) > 15) {
+            break; // 배너 영역 통과 완료
+          }
+        }
+      }
+
+      // 배너를 찾지 못한 경우(폰트나 테마 차이) 안전 마진 적용
+      if (topBannerStartY === -1) {
+        topBannerStartY = Math.floor(h * 0.12);
+        topBannerEndY = Math.floor(h * 0.25);
+      }
+
+      // 2. 하단 리스트 블록 시작 지점 탐색 (상단 배너 끝 + 여백 이후)
+      bottomListStartY = topBannerEndY + Math.floor(h * 0.02);
+
+      // 하단 완료 버튼 및 네비게이션바 시작 전까지만 크롭 (높이의 80% 부근)
+      const bottomListEndY = Math.floor(h * 0.81);
+
+      // [상단 배너 캔버스]
+      const bannerCanvas = document.createElement('canvas');
+      const bctx = bannerCanvas.getContext('2d');
+      const bW = Math.floor(w * 0.94);
+      const bH = (topBannerEndY - topBannerStartY) + 20;
+      bannerCanvas.width = bW;
+      bannerCanvas.height = bH;
+      bctx.drawImage(img, Math.floor(w * 0.03), Math.max(0, topBannerStartY - 10), bW, bH, 0, 0, bW, bH);
+
+      // [하단 리스트 캔버스: 키값 전용]
+      const listCanvas = document.createElement('canvas');
+      const lctx = listCanvas.getContext('2d');
+      const lW = Math.floor(w * 0.94);
+      const lH = bottomListEndY - bottomListStartY;
+      listCanvas.width = lW;
+      listCanvas.height = lH;
+      lctx.drawImage(img, Math.floor(w * 0.03), bottomListStartY, lW, lH, 0, 0, lW, lH);
+
+      return {
+        bannerUrl: bannerCanvas.toDataURL('image/png'),
+        listUrl: listCanvas.toDataURL('image/png')
+      };
+    }
+
+    // 8자리부터 20자리까지 순수 키코드 정제 함수
+    function sanitizeGenericKeyCode(str) {
+      if (!str) return null;
+      let clean = str.toUpperCase().trim();
+
+      // 한글 및 체크마크 꼬리표 강제 분리
+      clean = clean.replace(/[가-힣]+.*$/, '');
+      clean = clean.replace(/[^A-Z0-9\-]/g, '');
+
+      // 메타 및 시스템 텍스트 배제
       const blacklist = ['KITMANAGER', 'KITAIR', 'BULK', 'MANAGER', 'STATUS', 'SUCCESS', 'FAILED', 'MPROD', 'M_QQQ', 'M_PROD'];
       if (blacklist.some(b => clean.includes(b))) return null;
+      if (clean.startsWith('HI') || clean.startsWith('M_')) return null;
 
-      // 끝에 붙은 한글/특수문자 제거
-      clean = clean.replace(/[가-힣]+.*$/, '');
-      clean = clean.replace(/[^A-Z0-9]/g, '');
-
-      // 메타코드 접두사 차단
-      if (clean.startsWith('HI') || clean.startsWith('M')) return null;
-
-      // [핵심 조건] 10자리 이상 14자리 이하 영숫자만 키값으로 인정
-      // (상태바 4354DIJE 등 8~9자리 노이즈는 탈락하고, 10/12자리 키값은 통과)
-      if (clean.length >= 10 && clean.length <= 14) {
-        // 날짜(20261106 등) 제외
-        if (!/^\d{8,14}$/.test(clean)) {
+      // [사용자 요구 반영] 8자리 이상부터 20자리 이하까지 허용
+      if (/^[A-Z0-9]{8,20}$/.test(clean) || /^[A-Z0-9]{3,}(?:-[A-Z0-9]{3,})+$/.test(clean)) {
+        // 단순 날짜 형태(YYYYMMDD) 제외
+        if (!/^\d{8}$/.test(clean)) {
           return clean;
         }
       }
@@ -250,13 +331,15 @@
       if (fileList.length === 0) return;
 
       progressArea.classList.remove('hidden');
+      
+      // 상단 배너용 (한글+영문) & 하단 리스트용 (영숫자 집중)
       const worker = await Tesseract.createWorker(['kor', 'eng']);
 
       let skippedDuplicateCount = 0;
 
       for (let i = 0; i < fileList.length; i++) {
         const file = fileList[i];
-        progressText.innerText = `[${i + 1}/${fileList.length}] ${file.name} 전수 분석 중...`;
+        progressText.innerText = `[${i + 1}/${fileList.length}] 콜아웃 블록 자동 분할 스캔 중...`;
 
         try {
           const fileHash = await calculateFileHash(file);
@@ -266,20 +349,24 @@
           }
 
           const previewUrl = URL.createObjectURL(file);
-          const ret = await worker.recognize(file);
-          const rawText = ret.data.text;
+          const img = await loadImage(file);
 
-          // 1. 타이틀 파싱 (바꿀 앨범 뒤 텍스트, (M 이전까지)
+          // 1. 픽셀 기반 콜아웃 블록 분할
+          const { bannerUrl, listUrl } = detectAndCropBlocks(img);
+
+          // 2. 상단 배너에서만 타이틀 추출
+          const bannerRet = await worker.recognize(bannerUrl);
+          const bannerText = bannerRet.data.text;
+
           let autoTitle = '';
-          const match = rawText.match(/(?:바꿀\s*앨범|바꿀)\s*[:：]?\s*([^\n\r]+)/i);
+          const match = bannerText.match(/(?:바꿀\s*앨범|바꿀)\s*[:：]?\s*([^\n\r]+)/i);
           if (match && match[1]) {
             let t = match[1].trim();
             const mIdx = t.search(/[\(\[\{]\s*[Mm]/);
             if (mIdx !== -1) t = t.substring(0, mIdx).trim();
             autoTitle = t.replace(/[:\/\\\-_]+$/, '').trim();
           } else {
-            // 바꿀 앨범 키워드가 깨진 경우 슬래시(/)가 포함된 라인 탐색
-            const lines = rawText.split(/[\r\n]+/);
+            const lines = bannerText.split(/[\r\n]+/);
             const slashLine = lines.find(l => l.includes('/') && !l.includes('http') && !l.includes('성공'));
             if (slashLine) {
               let t = slashLine.replace(/.*(?:바꿀\s*앨범|바꿀)\s*[:：]?/, '').trim();
@@ -289,33 +376,35 @@
             }
           }
 
-          // 2. 키값 추출 (줄 순서에 의존하지 않는 안전한 전수 스캔)
+          // 3. 하단 콜아웃 블록에서만 키값 전수 추출
+          const listRet = await worker.recognize(listUrl);
+          const listText = listRet.data.text;
+
           const groupKeys = [];
-          const lines = rawText.split(/[\r\n]+/);
+          const lines = listText.split(/[\r\n]+/);
 
           for (let line of lines) {
             line = line.trim();
             if (!line) continue;
-            // 앨범명 줄이나 현재 라인은 스킵
-            if (line.includes('바꿀 앨범') || line.includes('현재:')) continue;
+            if (line.includes('현재:')) continue; // 메타 정보 배제
 
-            // 전략 1: 줄 내에서 10~14자리 키코드 패턴 직접 탐색 (공백 압축)
+            // 전략 A: 줄 전체에서 '성공' 떼어내고 공백 압축 (자간 분리된 52C9102 FD606 등 완벽 결합)
             const strippedLine = line.replace(/[가-힣]+.*$/, '').trim();
             const compressed = strippedLine.replace(/\s+/g, '');
-            const fromLine = extractValidKeyCode(compressed);
+            const candidateA = sanitizeGenericKeyCode(compressed);
 
-            if (fromLine && !groupKeys.includes(fromLine)) {
-              groupKeys.push(fromLine);
+            if (candidateA && !groupKeys.includes(candidateA)) {
+              groupKeys.push(candidateA);
               continue;
             }
 
-            // 전략 2: 정규식을 사용해 줄 안에서 10~14자리 영숫자 블록 추출
-            const matchedTokens = strippedLine.match(/[A-Za-z0-9]{10,14}/g);
-            if (matchedTokens) {
-              for (let tok of matchedTokens) {
-                const code = extractValidKeyCode(tok);
-                if (code && !groupKeys.includes(code)) {
-                  groupKeys.push(code);
+            // 전략 B: 8자리 이상 영숫자 덩어리 정규식 추출
+            const matches = strippedLine.match(/[A-Za-z0-9]{8,20}/g);
+            if (matches) {
+              for (let tok of matches) {
+                const candidateB = sanitizeGenericKeyCode(tok);
+                if (candidateB && !groupKeys.includes(candidateB)) {
+                  groupKeys.push(candidateB);
                 }
               }
             }
@@ -418,7 +507,7 @@
           <!-- 키값 리스트 -->
           <div class="bg-white rounded-lg border border-slate-200 divide-y divide-slate-100 overflow-hidden">
             ${group.keyCodes.length === 0 ? `
-              <div class="p-3 text-center text-xs text-slate-400">추출된 신규 키값이 없습니다.</div>
+              <div class="p-3 text-center text-xs text-slate-400">추출된 신규 8자리 이상 키값이 없습니다.</div>
             ` : group.keyCodes.map((code, kIdx) => `
               <div class="flex items-center justify-between px-3.5 py-2 text-xs">
                 <div class="flex items-center gap-3">
