@@ -27,15 +27,15 @@
       <div>
         <div class="flex items-center gap-2">
           <h1 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">샘플 벌크 키값 추출</h1>
-          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">사진별 그룹 관리</span>
+          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">범용 영숫자 파서</span>
         </div>
-        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">공백 분리 키값 자동 결합 & 중복 사진 자동 제외</p>
+        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">다양한 포맷의 키코드를 자간 공백 오차 없이 전수 자동 추출합니다.</p>
       </div>
     </div>
     <div class="hidden sm:flex items-center gap-2">
       <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-        공백 분리 복원 엔진 활성
+        범용 Alphanumeric 적응형 스캔 가동
       </span>
     </div>
   </header>
@@ -96,7 +96,7 @@
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
           </div>
           <p class="text-sm font-semibold text-slate-800">터치하여 갤러리 선택 또는 드래그 업로드</p>
-          <p class="text-xs text-slate-400 mt-1">공백 분리 키값 자동 병합 · 중복 사진 자동 제외</p>
+          <p class="text-xs text-slate-400 mt-1">자간 분리 자동 복원 · 사진별 개별 타이틀 관리</p>
         </div>
 
         <!-- 진행 상태 바 -->
@@ -113,7 +113,7 @@
 
     </section>
 
-    <!-- 우측: 결과 목록 -->
+    <!-- 우측: 사진별 카드 묶음 관리 및 내보내기 -->
     <section class="lg:col-span-8 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col min-h-[550px]">
       
       <!-- 상단 액션 바 -->
@@ -126,7 +126,7 @@
             </h2>
             <span id="totalKeyCountBadge" class="text-xs bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">총 0건</span>
           </div>
-          <p class="text-[11px] text-slate-400 mt-1">각 사진의 상단 타이틀을 수정하면 해당 사진의 모든 키값에 즉시 연동됩니다.</p>
+          <p class="text-[11px] text-slate-400 mt-1">각 사진 카드의 타이틀명을 확인 후 수정하시면 엑셀/CSV에 즉시 일괄 적용됩니다.</p>
         </div>
 
         <div class="flex items-center gap-2">
@@ -218,28 +218,31 @@
       return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     }
 
-    // 16진수 키코드 정밀 복원 함수 (공백 및 오타 복원)
-    function repairHexToken(rawToken) {
-      let t = rawToken.toUpperCase();
-      t = t.replace(/[가-힣]+.*$/, '');
-      t = t.replace(/[^A-Z0-9]/g, '');
+    // 범용 영숫자(Alphanumeric) 키코드 정제 함수
+    function sanitizeGenericKeyCode(str) {
+      if (!str) return null;
+      let clean = str.toUpperCase().trim();
 
-      if (t.length < 10 || t.length > 14) return null;
-      if (t.startsWith('MPROD') || t.startsWith('HI') || t.startsWith('M_')) return null;
+      // 우측의 '성공', '대기', '실패' 및 특수문자 잘라내기
+      clean = clean.replace(/[가-힣]+.*$/, '');
+      clean = clean.replace(/[^A-Z0-9\-]/g, '');
 
-      let repaired = '';
-      for (let ch of t) {
-        if (ch === 'O' || ch === 'Q') repaired += '0';
-        else if (ch === 'I' || ch === 'L') repaired += '1';
-        else if (ch === 'S') repaired += '5';
-        else if (ch === 'Z') repaired += '2';
-        else if (ch === 'G') repaired += '6';
-        else if (ch === 'P' || ch === 'T') repaired += 'F';
-        else repaired += ch;
+      // 하단 메타 식별자(M_PROD, HI_, M_QQQ 등) 배제
+      if (clean.startsWith('MPROD') || clean.startsWith('HI') || clean.startsWith('M_')) {
+        return null;
       }
 
-      if (/^[0-9A-F]{10,14}$/.test(repaired)) {
-        if (!/^\d{8,14}$/.test(repaired)) return repaired;
+      // 시스템 텍스트 배제
+      if (/^(STATUS|SUCCESS|FAILED|KITAIR|ANDROID|IPHONE)/.test(clean)) {
+        return null;
+      }
+
+      // 8자리 이상 20자리 이하의 영문/숫자 혼합 또는 고유 코드 검증
+      if (/^[A-Z0-9]{8,20}$/.test(clean) || /^[A-Z0-9]{3,}(?:-[A-Z0-9]{3,})+$/.test(clean)) {
+        // 단순 날짜 형태(YYYYMMDD) 제외
+        if (!/^\d{8}$/.test(clean)) {
+          return clean;
+        }
       }
       return null;
     }
@@ -255,9 +258,10 @@
 
       for (let i = 0; i < fileList.length; i++) {
         const file = fileList[i];
-        progressText.innerText = `[${i + 1}/${fileList.length}] ${file.name} 분석 및 누락 복원 중...`;
+        progressText.innerText = `[${i + 1}/${fileList.length}] ${file.name} 전수 분석 중...`;
 
         try {
+          // 파일 자체 해시 중복 검사
           const fileHash = await calculateFileHash(file);
           if (uploadedFileHashes.has(fileHash)) {
             skippedDuplicateCount++;
@@ -268,7 +272,7 @@
           const ret = await worker.recognize(file);
           const rawText = ret.data.text;
 
-          // 타이틀 추출 ('바꿀 앨범' 뒤 텍스트, (M 이전까지)
+          // 타이틀 자동 파싱
           let autoTitle = '';
           const match = rawText.match(/(?:바꿀\s*앨범|바꿀)\s*[:：]?\s*([^\n\r]+)/i);
           if (match && match[1]) {
@@ -278,35 +282,37 @@
             autoTitle = t.replace(/[:\/\\\-_]+$/, '').trim();
           }
 
-          // 키값 전수 추출
+          // 범용 키값 전수 추출
           const groupKeys = [];
           const lines = rawText.split(/[\r\n]+/);
 
           for (let line of lines) {
+            line = line.trim();
+            if (!line) continue;
             if (line.includes('바꿀 앨범') || line.includes('현재:')) continue;
 
-            // 1단계: 줄 자체에서 불필요한 한글/특수문자 제거
-            const cleanLine = line.replace(/[가-힣]+.*$/, '').trim();
+            // 전략 1: 줄 전체에서 '성공' 등 불필요 문구를 떼어낸 뒤 공백을 압축하여 결합
+            // (폰트 자간으로 쪼개진 52C9102 FD606 등을 하나로 온전하게 복원)
+            const strippedLine = line.replace(/[가-힣]+.*$/, '').trim();
+            const compressed = strippedLine.replace(/\s+/g, '');
+            const candidateFromLine = sanitizeGenericKeyCode(compressed);
 
-            // 2단계: 띄어쓰기로 쪼개진 16진수 조각 결합 (예: "52C9102 FD606" -> "52C9102FD606")
-            const collapsed = cleanLine.replace(/\s+/g, '');
-            const collapsedCode = repairHexToken(collapsed);
-            if (collapsedCode && !groupKeys.includes(collapsedCode)) {
-              groupKeys.push(collapsedCode);
+            if (candidateFromLine && !groupKeys.includes(candidateFromLine)) {
+              groupKeys.push(candidateFromLine);
               continue;
             }
 
-            // 3단계: 단어 단위 검사 (정상 분리된 토큰)
+            // 전략 2: 공백 기준 단어 단위 개별 검사
             const words = line.split(/[\s,]+/);
             for (let word of words) {
-              const code = repairHexToken(word);
-              if (code && !groupKeys.includes(code)) {
-                groupKeys.push(code);
+              const candidate = sanitizeGenericKeyCode(word);
+              if (candidate && !groupKeys.includes(candidate)) {
+                groupKeys.push(candidate);
               }
             }
           }
 
-          // 전체 중복 사진 검사
+          // 키값 기준 완전 중복 사진 판별
           const isEntirelyDuplicate = groupKeys.length > 0 && groupKeys.every(k => globalKeyCodes.has(k));
 
           if (isEntirelyDuplicate) {
@@ -403,7 +409,7 @@
           <!-- 키값 리스트 -->
           <div class="bg-white rounded-lg border border-slate-200 divide-y divide-slate-100 overflow-hidden">
             ${group.keyCodes.length === 0 ? `
-              <div class="p-3 text-center text-xs text-slate-400">추출된 신규 10~14자리 키값이 없습니다.</div>
+              <div class="p-3 text-center text-xs text-slate-400">추출된 신규 키값이 없습니다.</div>
             ` : group.keyCodes.map((code, kIdx) => `
               <div class="flex items-center justify-between px-3.5 py-2 text-xs">
                 <div class="flex items-center gap-3">
