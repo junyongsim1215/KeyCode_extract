@@ -27,15 +27,15 @@
       <div>
         <div class="flex items-center gap-2">
           <h1 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">샘플 벌크 키값 추출</h1>
-          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">10/12자리 Hex 완벽 대응</span>
+          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">구역 분할 OCR</span>
         </div>
-        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">안드로이드(10자리) 및 iOS(12자리) 키값을 정확히 분별하여 추출합니다.</p>
+        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">iOS/안드로이드 고정 템플릿 영역 분할 추출 (8~14자리 키값 전수 인식)</p>
       </div>
     </div>
     <div class="hidden sm:flex items-center gap-2">
       <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-        16진수 스마트 검증 활성
+        블록별 분할 스캔 활성
       </span>
     </div>
   </header>
@@ -78,11 +78,11 @@
             </div>
           </div>
 
-          <!-- Title 수동 고정 (선택) -->
+          <!-- Title 수동 고정 -->
           <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">Title (앨범 타이틀 수동 일괄 지정 시)</label>
-            <input type="text" id="albumTitle" placeholder="비워두면 각 사진의 앨범명을 자동 추출합니다" class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition">
-            <p class="text-[11px] text-slate-400 mt-1">비워두면 캡처본마다 상단에 적힌 앨범명을 각각 읽어옵니다.</p>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Title (앨범 타이틀 직접 지정 시)</label>
+            <input type="text" id="albumTitle" placeholder="비워두면 각 사진 상단 배너에서 자동 추출" class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition">
+            <p class="text-[11px] text-slate-400 mt-1">비워두면 캡처본 상단 배너의 '바꿀 앨범' 텍스트를 자동 파싱합니다.</p>
           </div>
         </div>
       </div>
@@ -94,7 +94,7 @@
             <span class="w-6 h-6 rounded-full bg-emerald-700 text-white text-xs font-bold flex items-center justify-center">2</span>
             <h2 class="font-bold text-slate-800 text-sm sm:text-base">캡처 사진 업로드</h2>
           </div>
-          <span class="text-xs bg-emerald-50 text-emerald-700 font-semibold px-2 py-0.5 rounded border border-emerald-200">다중 스캔</span>
+          <span class="text-xs bg-emerald-50 text-emerald-700 font-semibold px-2 py-0.5 rounded border border-emerald-200">구역 자동 크롭</span>
         </div>
 
         <div id="dropZone" class="border-2 border-dashed border-slate-300 hover:border-emerald-500 active:bg-emerald-50/40 rounded-2xl p-6 sm:p-8 text-center cursor-pointer transition bg-slate-50 hover:bg-emerald-50/20 group select-none">
@@ -103,7 +103,7 @@
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
           </div>
           <p class="text-sm font-semibold text-slate-800">터치하여 갤러리 선택 또는 드래그 업로드</p>
-          <p class="text-xs text-slate-400 mt-1">안드로이드(10자리) / iOS(12자리) 캡처본 동시 지원</p>
+          <p class="text-xs text-slate-400 mt-1">상단 배너 타이틀 분리 & 8~14자리 키값 자동 전수 추출</p>
         </div>
 
         <!-- 진행 상태 바 -->
@@ -133,7 +133,7 @@
             </h2>
             <span id="resultCountBadge" class="text-xs bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">0 행</span>
           </div>
-          <p class="text-[11px] text-slate-400 mt-1">포맷: No. | Date | Key Code | Title | Shipping Country</p>
+          <p class="text-[11px] text-slate-400 mt-1">각 행의 타이틀과 키값은 클릭하여 바로 수정할 수 있습니다.</p>
         </div>
 
         <div class="flex items-center gap-2">
@@ -151,7 +151,7 @@
         </div>
       </div>
 
-      <!-- 모바일 가로 스크롤 테이블 -->
+      <!-- 테이블 영역 -->
       <div class="flex-1 overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
         <table class="w-full text-left text-xs border-collapse min-w-[620px]">
           <thead>
@@ -171,7 +171,7 @@
                   <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                 </div>
                 <p class="font-bold text-slate-600 text-sm">추출된 데이터가 없습니다</p>
-                <p class="text-xs text-slate-400 mt-0.5">캡처 사진을 올리면 10/12자리 키값과 앨범명을 자동 추출합니다.</p>
+                <p class="text-xs text-slate-400 mt-0.5">캡처 사진을 올리면 상단 배너 타이틀과 8~14자리 키값을 분할 추출합니다.</p>
               </td>
             </tr>
           </tbody>
@@ -233,6 +233,66 @@
       }
     });
 
+    // 이미지 파일을 Image 엘리먼트로 로드
+    function loadImage(file) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    // 영역별 물리적 크롭 함수 (상단 배너 및 하단 키값 리스트 분리)
+    function cropImageSection(img, cropType) {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const w = img.width;
+      const h = img.height;
+
+      let sx, sy, sw, sh;
+
+      if (cropType === 'banner') {
+        // [상단 배너 구역: 타이틀 전용]
+        // 상단 네비게이션바/시간바 아래 ~ 성공/실패 카운트 박스 끝 지점 (높이 12% ~ 27% 구간)
+        sx = Math.floor(w * 0.02);
+        sy = Math.floor(h * 0.12);
+        sw = Math.floor(w * 0.96);
+        sh = Math.floor(h * 0.15);
+      } else {
+        // [하단 카드 구역: 키값 리스트 전용]
+        // 배너 아래 첫 키코드 시작 지점 ~ 완료 버튼 위 (높이 26% ~ 82% 구간)
+        sx = Math.floor(w * 0.03);
+        sy = Math.floor(h * 0.26);
+        sw = Math.floor(w * 0.94);
+        sh = Math.floor(h * 0.56);
+      }
+
+      canvas.width = sw;
+      canvas.height = sh;
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+
+      // 상단 배너 영역 대비 보정 (연두/보라 파스텔 배경 글자 선명화)
+      if (cropType === 'banner') {
+        const imgData = ctx.getImageData(0, 0, sw, sh);
+        const d = imgData.data;
+        for (let i = 0; i < d.length; i += 4) {
+          const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+          // 배경은 날리고 글자 명암 극대화
+          const val = gray > 140 ? 255 : gray * 0.5;
+          d[i] = val;
+          d[i + 1] = val;
+          d[i + 2] = val;
+        }
+        ctx.putImageData(imgData, 0, 0);
+      }
+
+      return canvas.toDataURL('image/png');
+    }
+
     async function handleImageFiles(files) {
       const fileList = Array.from(files).filter(f => f.type.startsWith('image/'));
       if (fileList.length === 0) return;
@@ -242,13 +302,25 @@
 
       for (let i = 0; i < fileList.length; i++) {
         const file = fileList[i];
-        progressText.innerText = `[${i + 1}/${fileList.length}] ${file.name} 분석 중...`;
-        
+        progressText.innerText = `[${i + 1}/${fileList.length}] 구역별 분할 스캔 중...`;
+
         try {
-          const ret = await worker.recognize(file);
-          parseExtractedText(ret.data.text);
+          const img = await loadImage(file);
+
+          // 1단계: 상단 배너 영역만 크롭하여 타이틀 추출
+          const bannerDataUrl = cropImageSection(img, 'banner');
+          const bannerRet = await worker.recognize(bannerDataUrl);
+          const bannerText = bannerRet.data.text;
+
+          // 2단계: 하단 리스트 영역만 크롭하여 키값 추출
+          const listDataUrl = cropImageSection(img, 'list');
+          const listRet = await worker.recognize(listDataUrl);
+          const listText = listRet.data.text;
+
+          // 데이터 파싱 및 행 바인딩
+          parseSectionTexts(bannerText, listText);
         } catch (error) {
-          console.error('OCR 실패:', error);
+          console.error('분할 스캔 오류:', error);
         }
 
         const pct = Math.round(((i + 1) / fileList.length) * 100);
@@ -267,110 +339,98 @@
       fileInput.value = '';
     }
 
-    // 앨범 타이틀 텍스트 클리닝 함수
-    function cleanTitleString(str) {
-      if (!str) return '기본 타이틀';
-
-      // (M_... 또는 (M... 내부 식별 코드 및 괄호 분리
-      const mIdx = str.search(/[\(\[\{]\s*[Mm]/);
-      if (mIdx !== -1) {
-        str = str.substring(0, mIdx);
-      }
-
-      // 노이즈 특수문자 제거
-      str = str.replace(/[@#\$%\^&\*~;]/g, '');
-
-      // 오인식 단어 보정
-      str = str.replace(/\bMoi\b/gi, '오씰');
-      str = str.replace(/\bYunsae\b/gi, 'Yunsae');
-
-      // 끝자리 콜론, 슬래시, 대시 제거
-      str = str.replace(/[:\/\\\-_]+$/, '').trim();
-
-      return str || '기본 타이틀';
-    }
-
-    // 파일별 정밀 분석 알고리즘
-    function parseExtractedText(rawText) {
-      const defaultDate = document.getElementById('workDate').value || today;
-      const defaultCountry = getSelectedCountry();
-      const manualTitle = document.getElementById('albumTitle').value.trim();
-
-      // --- [1. 파일별 독립 타이틀 추출] ---
-      let resolvedTitle = manualTitle;
-      if (!resolvedTitle) {
-        const titleRegex = /(?:바꿀\s*앨범|바꿀)\s*[:：]?\s*([^\n\r]+)/i;
-        const match = rawText.match(titleRegex);
-
-        if (match && match[1]) {
-          resolvedTitle = cleanTitleString(match[1]);
-        } else {
-          const lines = rawText.split(/[\r\n]+/);
-          const slashLine = lines.find(line => 
-            line.includes('/') && 
-            !line.includes('http') && 
-            !line.includes('www') &&
-            !line.includes('성공') &&
-            !line.includes('실패')
-          );
-          if (slashLine) {
-            let t = slashLine.replace(/.*(?:바꿀\s*앨범|바꿀)\s*[:：]?/, '');
-            resolvedTitle = cleanTitleString(t);
-          } else {
-            resolvedTitle = '기본 타이틀';
-          }
+    // 상단 배너 텍스트에서 순수 타이틀만 파싱
+    function parseBannerTitle(text) {
+      let title = '';
+      
+      // '바꿀 앨범' 또는 '바꿀' 뒤의 텍스트 탐색
+      const match = text.match(/(?:바꿀\s*앨범|바꿀)\s*[:：]?\s*([^\n\r]+)/i);
+      if (match && match[1]) {
+        title = match[1].trim();
+      } else {
+        // 콜론이나 키워드가 깨진 경우 슬래시(/)가 포함된 라인 탐색
+        const lines = text.split(/[\r\n]+/);
+        const slashLine = lines.find(l => l.includes('/') && !l.includes('성공') && !l.includes('실패'));
+        if (slashLine) {
+          title = slashLine.replace(/.*(?:바꿀\s*앨범|바꿀)\s*[:：]?/, '').trim();
         }
       }
 
-      // --- [2. 10자리 및 12자리 16진수(Hex) 키코드 전수 스캔] ---
-      const candidateList = [];
-      const lines = rawText.split(/[\r\n]+/);
+      // 괄호 (M_... 또는 (M... 코드 시작점 앞까지만 분리
+      const mIdx = title.search(/[\(\[\{]\s*[Mm]/);
+      if (mIdx !== -1) {
+        title = title.substring(0, mIdx).trim();
+      }
+
+      // OCR 특수문자 노이즈 제거
+      title = title.replace(/[@#\$%\^&\*~;]/g, '');
+      title = title.replace(/\bQA\b/gi, '').trim();
+
+      // 한글 자모가 쪼개져 띄어쓰기 된 경우 정돈 (예: "라 라 라 온" -> "라라라온")
+      title = title.replace(/([가-힣])\s+(?=[가-힣]\s+[가-힣])/g, '$1');
+
+      // 끝자리 콜론, 슬래시 정리
+      title = title.replace(/[:\/\\\-_]+$/, '').trim();
+
+      return title || '기본 타이틀';
+    }
+
+    // 하단 리스트 텍스트에서 8~14자리 연속 키코드만 전수 파싱
+    function parseKeyCodesFromList(text) {
+      const result = [];
+      const lines = text.split(/[\r\n]+/);
 
       for (let line of lines) {
         line = line.trim();
         if (!line) continue;
 
-        // 메타데이터 행 배제 (현재: ..., HI_..., M_...)
+        // 메타 라인('현재:', 'HI_', 'M_')은 통째로 건너뜀
         if (line.includes('현재') || /^(HI_|M_|PROD_)/i.test(line)) {
           continue;
         }
 
         const tokens = line.split(/[\s,]+/);
         for (let token of tokens) {
-          // 특수문자 제거 후 영문 대문자화
-          let clean = token.replace(/[^A-Za-z0-9\-]/g, '').trim().toUpperCase();
+          // 특수문자 제거 및 대문자화
+          let clean = token.replace(/[^A-Za-z0-9]/g, '').trim().toUpperCase();
 
-          // 메타코드 배제
-          if (clean.startsWith('MPROD') || clean.startsWith('M_') || clean.startsWith('HI_')) {
+          // 앨범 메타코드 필터링
+          if (clean.startsWith('MPROD') || clean.startsWith('M') && clean.length > 14) {
             continue;
           }
 
-          // [핵심 필터] 10자리 또는 12자리 16진수 (0-9, A-F)만 수용!
-          // REMASTERED처럼 G~Z가 포함된 영단어는 자동 탈락됨
-          if (/^[0-9A-F]{10}$|^[0-9A-F]{12}$/.test(clean)) {
-            // 날짜 형식(20261106 등) 제외
-            if (!/^\d{8,12}$/.test(clean)) {
-              candidateList.push(clean);
-              continue;
+          // [핵심 조건] 8~14자리 연속 16진수 키코드만 추출 (안드로이드 10자리, iOS 12자리 모두 포함)
+          if (/^[0-9A-F]{8,14}$/.test(clean)) {
+            // 날짜 형태(YYYYMMDD) 제외
+            if (!/^\d{8}$/.test(clean)) {
+              result.push(clean);
             }
-          }
-
-          // 표준 하이픈 연결 키코드 (XXXX-XXXX-XXXX)
-          if (/^[0-9A-F]{3,}(?:-[0-9A-F]{3,})+$/.test(clean)) {
-            candidateList.push(clean);
-            continue;
           }
         }
       }
 
-      // --- [3. 파일별 키값 + 해당 사진의 타이틀 바인딩] ---
-      candidateList.forEach(code => {
+      return result;
+    }
+
+    // 분할된 두 영역의 결과를 합쳐 데이터 목록에 등록
+    function parseSectionTexts(bannerText, listText) {
+      const defaultDate = document.getElementById('workDate').value || today;
+      const defaultCountry = getSelectedCountry();
+      const manualTitle = document.getElementById('albumTitle').value.trim();
+
+      // 타이틀 결정 (수동 입력 우선 -> 배너 크롭 자동 파싱)
+      const finalTitle = manualTitle || parseBannerTitle(bannerText);
+
+      // 하단 구역에서 8~14자리 키값 추출
+      const keyCodes = parseKeyCodesFromList(listText);
+
+      keyCodes.forEach(code => {
         if (!seenKeyCodes.has(code)) {
           seenKeyCodes.add(code);
           extractedRows.push({
             date: defaultDate,
             keyCode: code,
-            title: resolvedTitle,
+            title: finalTitle,
             country: defaultCountry
           });
         }
