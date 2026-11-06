@@ -27,15 +27,15 @@
       <div>
         <div class="flex items-center gap-2">
           <h1 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">샘플 벌크 키값 추출</h1>
-          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">사진 중복 자동 필터</span>
+          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">사진별 그룹 관리</span>
         </div>
-        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">동일한 사진 및 중복 키값 캡처본을 자동으로 감지하여 제외합니다.</p>
+        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">공백 분리 키값 자동 결합 & 중복 사진 자동 제외</p>
       </div>
     </div>
     <div class="hidden sm:flex items-center gap-2">
       <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-        이미지 해시 & 키값 이중 중복 방지
+        공백 분리 복원 엔진 활성
       </span>
     </div>
   </header>
@@ -96,7 +96,7 @@
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
           </div>
           <p class="text-sm font-semibold text-slate-800">터치하여 갤러리 선택 또는 드래그 업로드</p>
-          <p class="text-xs text-slate-400 mt-1">동일 사진/동일 키값 캡처본 자동 제외</p>
+          <p class="text-xs text-slate-400 mt-1">공백 분리 키값 자동 병합 · 중복 사진 자동 제외</p>
         </div>
 
         <!-- 진행 상태 바 -->
@@ -113,7 +113,7 @@
 
     </section>
 
-    <!-- 우측: 사진별 카드 묶음 관리 및 내보내기 -->
+    <!-- 우측: 결과 목록 -->
     <section class="lg:col-span-8 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col min-h-[550px]">
       
       <!-- 상단 액션 바 -->
@@ -161,7 +161,7 @@
   <script>
     let photoGroups = [];
     const globalKeyCodes = new Set();
-    const uploadedFileHashes = new Set(); // 파일 바이너리 해시 저장소
+    const uploadedFileHashes = new Set();
 
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('workDate').value = today;
@@ -211,7 +211,6 @@
       }
     });
 
-    // 파일 고유 해시(SHA-256) 생성 함수 (물리적 중복 사진 즉각 감지)
     async function calculateFileHash(file) {
       const buffer = await file.arrayBuffer();
       const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
@@ -219,7 +218,7 @@
       return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     }
 
-    // 16진수 키코드 지능형 복원 (10~14자리)
+    // 16진수 키코드 정밀 복원 함수 (공백 및 오타 복원)
     function repairHexToken(rawToken) {
       let t = rawToken.toUpperCase();
       t = t.replace(/[가-힣]+.*$/, '');
@@ -234,6 +233,8 @@
         else if (ch === 'I' || ch === 'L') repaired += '1';
         else if (ch === 'S') repaired += '5';
         else if (ch === 'Z') repaired += '2';
+        else if (ch === 'G') repaired += '6';
+        else if (ch === 'P' || ch === 'T') repaired += 'F';
         else repaired += ch;
       }
 
@@ -254,10 +255,9 @@
 
       for (let i = 0; i < fileList.length; i++) {
         const file = fileList[i];
-        progressText.innerText = `[${i + 1}/${fileList.length}] ${file.name} 분석 및 중복 검증 중...`;
+        progressText.innerText = `[${i + 1}/${fileList.length}] ${file.name} 분석 및 누락 복원 중...`;
 
         try {
-          // 1차 검증: 파일 자체 바이너리 해시 검사
           const fileHash = await calculateFileHash(file);
           if (uploadedFileHashes.has(fileHash)) {
             skippedDuplicateCount++;
@@ -268,7 +268,7 @@
           const ret = await worker.recognize(file);
           const rawText = ret.data.text;
 
-          // 타이틀 추출
+          // 타이틀 추출 ('바꿀 앨범' 뒤 텍스트, (M 이전까지)
           let autoTitle = '';
           const match = rawText.match(/(?:바꿀\s*앨범|바꿀)\s*[:：]?\s*([^\n\r]+)/i);
           if (match && match[1]) {
@@ -281,8 +281,22 @@
           // 키값 전수 추출
           const groupKeys = [];
           const lines = rawText.split(/[\r\n]+/);
+
           for (let line of lines) {
             if (line.includes('바꿀 앨범') || line.includes('현재:')) continue;
+
+            // 1단계: 줄 자체에서 불필요한 한글/특수문자 제거
+            const cleanLine = line.replace(/[가-힣]+.*$/, '').trim();
+
+            // 2단계: 띄어쓰기로 쪼개진 16진수 조각 결합 (예: "52C9102 FD606" -> "52C9102FD606")
+            const collapsed = cleanLine.replace(/\s+/g, '');
+            const collapsedCode = repairHexToken(collapsed);
+            if (collapsedCode && !groupKeys.includes(collapsedCode)) {
+              groupKeys.push(collapsedCode);
+              continue;
+            }
+
+            // 3단계: 단어 단위 검사 (정상 분리된 토큰)
             const words = line.split(/[\s,]+/);
             for (let word of words) {
               const code = repairHexToken(word);
@@ -292,8 +306,7 @@
             }
           }
 
-          // 2차 검증: 추출된 키값이 이미 등록된 다른 사진의 키값과 100% 동일한지 검사
-          // (다시 캡처해서 파일 해시가 달라도 키값이 전부 겹치면 중복 사진으로 판단)
+          // 전체 중복 사진 검사
           const isEntirelyDuplicate = groupKeys.length > 0 && groupKeys.every(k => globalKeyCodes.has(k));
 
           if (isEntirelyDuplicate) {
@@ -302,7 +315,6 @@
             continue;
           }
 
-          // 신규 유효 키값만 글로벌 Set에 등록
           const uniqueKeysForThisGroup = [];
           groupKeys.forEach(k => {
             if (!globalKeyCodes.has(k)) {
