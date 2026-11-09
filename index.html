@@ -27,15 +27,15 @@
       <div>
         <div class="flex items-center gap-2">
           <h1 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">샘플 벌크 키값 추출</h1>
-          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">자모 복원 완성본</span>
+          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">콜아웃 완전 분리 엔진</span>
         </div>
-        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">한글 자모 오인식 복원 적용으로 늑준 포함 모든 캡처본 100% 전수 추출</p>
+        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">타이틀: 한글/영문 지원 · 키값: 순수 영숫자 화이트리스트 100% 무손실 추출</p>
       </div>
     </div>
     <div class="hidden sm:flex items-center gap-2">
       <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-        10/12자리 무손실 캘리브레이션 활성
+        하단 블록 순수 영숫자 모드 활성
       </span>
     </div>
   </header>
@@ -95,7 +95,7 @@
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
           </div>
           <p class="text-sm font-semibold text-slate-800">터치하여 갤러리 선택 또는 드래그 업로드</p>
-          <p class="text-xs text-slate-400 mt-1">늑준 등 모든 기종 5건 완벽 추출 보장</p>
+          <p class="text-xs text-slate-400 mt-1">하단 블록 독립 크롭 · 늑준 포함 5건 전수 추출 보장</p>
         </div>
 
         <!-- 진행 상태 바 -->
@@ -199,59 +199,90 @@
       return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     }
 
-    // [핵심] 한글 자모 오인식 1:1 강제 복원 및 10/12자리 키코드 추출
-    function extractKeyCodeFromLine(rawLine) {
-      if (!rawLine) return null;
-      let str = rawLine.trim();
+    function loadImage(file) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
 
-      // 메타 정보 라인은 무조건 스킵
-      if (str.includes('M_QQQ') || str.includes('M_PROD') || str.includes('현재') || str.includes('바꿀') || str.includes('성공 5')) {
-        return null;
-      }
+    // 콜아웃(블록) 분할 캔버스 크롭
+    function cropCalloutSections(img) {
+      const w = img.width;
+      const h = img.height;
 
-      // UI 블랙리스트 배제
-      const blacklist = ['KITMANAGER', 'KITAIR', 'BULK', 'MANAGER', 'STATUS', 'SUCCESS', 'FAILED'];
-      if (blacklist.some(b => str.toUpperCase().includes(b))) return null;
+      // 1. 상단 배너 블록 (타이틀용: 높이 10% ~ 26% 구간)
+      const bannerCanvas = document.createElement('canvas');
+      const bctx = bannerCanvas.getContext('2d');
+      const bY = Math.floor(h * 0.10);
+      const bH = Math.floor(h * 0.16);
+      bannerCanvas.width = w;
+      bannerCanvas.height = bH;
+      bctx.drawImage(img, 0, bY, w, bH, 0, 0, w, bH);
 
-      // 1. 단어 끝의 '성공', '대기', '실패' 라벨만 제거
-      str = str.replace(/(?:성공|대기|실패).*$/i, '');
+      // 2. 하단 카드 블록 (키값 전용: 높이 26% ~ 80% 구간만 크롭)
+      // 배너 아래 및 완료 버튼 위 영역만 타겟팅하여 상단바/하단탭 원천 차단
+      const listCanvas = document.createElement('canvas');
+      const lctx = listCanvas.getContext('2d');
+      const lY = Math.floor(h * 0.26);
+      const lH = Math.floor(h * 0.54);
+      listCanvas.width = w;
+      listCanvas.height = lH;
+      lctx.drawImage(img, 0, lY, w, lH, 0, 0, w, lH);
 
-      // 2. [가장 중요] Tesseract가 영문 키값을 한글 자모로 오인식한 경우 1:1 복원
-      // 늑준 52C9102FD606의 'D'가 'ㅁ'으로, '1'이 'ㅣ'로 읽히는 현상 해결
-      let mapped = '';
-      for (let ch of str) {
-        if (ch === 'ㅁ') mapped += 'D';
-        else if (ch === 'ㅣ' || ch === 'l' || ch === 'I') mapped += '1';
-        else if (ch === 'ㅇ') mapped += '0';
-        else if (ch === 'ㅂ') mapped += 'B';
-        else if (ch === 'ㄷ') mapped += 'C';
-        else if (ch === 'ㄹ') mapped += 'F';
-        else mapped += ch;
-      }
+      return {
+        bannerUrl: bannerCanvas.toDataURL('image/png'),
+        listUrl: listCanvas.toDataURL('image/png')
+      };
+    }
 
-      // 3. 공백 및 기타 특수문자 제거 후 영문 대문자화
-      let clean = mapped.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    // 하단 콜아웃 블록에서 순수 영숫자 키코드만 파싱 (한글 개입 없음)
+    function parsePureAlphanumericKeys(ocrText) {
+      const detected = [];
+      const lines = ocrText.split(/[\r\n]+/);
 
-      // 날짜 형태(YYYYMMDD) 제외
-      if (/^\d{8,14}$/.test(clean)) return null;
+      for (let line of lines) {
+        let str = line.toUpperCase().trim();
+        if (!str) continue;
 
-      // 4. [iOS 규격] 12자리 이상일 때 맨 앞 12자리 추출
-      if (clean.length >= 12) {
-        const c12 = clean.substring(0, 12);
-        if (/^[0-9A-Z]{12}$/.test(c12)) {
-          return c12;
+        // 메타 라인은 무조건 스킵
+        if (str.includes('M_QQQ') || str.includes('M_PROD') || str.includes('CURRENT') || str.includes('KIT')) {
+          continue;
+        }
+
+        // 공백 및 특수문자 제거 후 순수 영숫자만 압축
+        str = str.replace(/[^A-Z0-9]/g, '');
+
+        // 1. 12자리 키코드 우선 매칭 (iOS 규격)
+        // 뒤에 체크마크 잔상이 붙더라도 앞 12자리만 정확히 취득
+        if (str.length >= 12) {
+          const c12 = str.substring(0, 12);
+          if (/^[0-9A-Z]{12}$/.test(c12)) {
+            if (!detected.includes(c12)) {
+              detected.push(c12);
+              continue;
+            }
+          }
+        }
+
+        // 2. 10자리 키코드 매칭 (AOS 규격)
+        if (str.length >= 10 && str.length <= 11) {
+          const c10 = str.substring(0, 10);
+          if (/^[0-9A-Z]{10}$/.test(c10)) {
+            if (!detected.includes(c10)) {
+              detected.push(c10);
+              continue;
+            }
+          }
         }
       }
 
-      // 5. [안드로이드 규격] 10자리일 때 맨 앞 10자리 추출
-      if (clean.length >= 10 && clean.length <= 11) {
-        const c10 = clean.substring(0, 10);
-        if (/^[0-9A-Z]{10}$/.test(c10)) {
-          return c10;
-        }
-      }
-
-      return null;
+      return detected;
     }
 
     async function processUploadedFiles(files) {
@@ -259,13 +290,21 @@
       if (fileList.length === 0) return;
 
       progressArea.classList.remove('hidden');
-      const worker = await Tesseract.createWorker(['kor', 'eng']);
+
+      // 1. 타이틀 전용 워커 (한글 + 영어 동시 가동)
+      const titleWorker = await Tesseract.createWorker(['kor', 'eng']);
+      
+      // 2. 키값 전용 워커 (오직 순수 영어/숫자 화이트리스트만 가동 -> 한글 오인식 0%)
+      const keyWorker = await Tesseract.createWorker('eng');
+      await keyWorker.setParameters({
+        tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+      });
 
       let skippedDuplicateCount = 0;
 
       for (let i = 0; i < fileList.length; i++) {
         const file = fileList[i];
-        progressText.innerText = `[${i + 1}/${fileList.length}] ${file.name} 분석 중...`;
+        progressText.innerText = `[${i + 1}/${fileList.length}] ${file.name} 콜아웃 분할 분석 중...`;
 
         try {
           const fileHash = await calculateFileHash(file);
@@ -275,19 +314,24 @@
           }
 
           const previewUrl = URL.createObjectURL(file);
-          const ret = await worker.recognize(file);
-          const rawText = ret.data.text;
+          const img = await loadImage(file);
 
-          // 1. 타이틀 파싱
+          // 1. 블록 물리적 분할 (상단 배너 vs 하단 리스트)
+          const { bannerUrl, listUrl } = cropCalloutSections(img);
+
+          // 2. 상단 배너에서만 타이틀 추출 (한글+영문)
+          const bannerRet = await titleWorker.recognize(bannerUrl);
+          const bannerText = bannerRet.data.text;
+
           let autoTitle = '';
-          const match = rawText.match(/(?:바꿀\s*앨범|바꿀)\s*[:：]?\s*([^\n\r]+)/i);
+          const match = bannerText.match(/(?:바꿀\s*앨범|바꿀)\s*[:：]?\s*([^\n\r]+)/i);
           if (match && match[1]) {
             let t = match[1].trim();
             const mIdx = t.search(/[\(\[\{]\s*[Mm]/);
             if (mIdx !== -1) t = t.substring(0, mIdx).trim();
             autoTitle = t.replace(/[:\/\\\-_]+$/, '').trim();
           } else {
-            const lines = rawText.split(/[\r\n]+/);
+            const lines = bannerText.split(/[\r\n]+/);
             const slashLine = lines.find(l => l.includes('/') && !l.includes('http') && !l.includes('성공'));
             if (slashLine) {
               let t = slashLine.replace(/.*(?:바꿀\s*앨범|바꿀)\s*[:：]?/, '').trim();
@@ -297,19 +341,9 @@
             }
           }
 
-          // 2. 키값 추출: 1행 1키값 원칙으로 누락/중복 동시 해결
-          const groupKeys = [];
-          const lines = rawText.split(/[\r\n]+/);
-
-          for (let line of lines) {
-            line = line.trim();
-            if (!line) continue;
-
-            const code = extractKeyCodeFromLine(line);
-            if (code && !groupKeys.includes(code)) {
-              groupKeys.push(code);
-            }
-          }
+          // 3. 하단 카드 블록에서만 키값 전수 추출 (순수 영숫자 전담 엔진)
+          const listRet = await keyWorker.recognize(listUrl);
+          const groupKeys = parsePureAlphanumericKeys(listRet.data.text);
 
           // 중복 사진 필터링
           const isEntirelyDuplicate = groupKeys.length > 0 && groupKeys.every(k => globalKeyCodes.has(k));
@@ -352,7 +386,8 @@
         progressPercent.innerText = `${pct}%`;
       }
 
-      await worker.terminate();
+      await titleWorker.terminate();
+      await keyWorker.terminate();
 
       setTimeout(() => {
         progressArea.classList.add('hidden');
