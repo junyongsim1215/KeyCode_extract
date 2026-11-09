@@ -27,15 +27,15 @@
       <div>
         <div class="flex items-center gap-2">
           <h1 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">샘플 벌크 키값 추출</h1>
-          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">10/12자리 정밀 튜닝</span>
+          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">10/12자리 무손실 모드</span>
         </div>
-        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">상태바 노이즈(8~9자리) 차단 & 10자리(AOS)/12자리(iOS) 순수 키값 전수 추출</p>
+        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">10자리(AOS) / 12자리(iOS) 키값 전수 복원 & 사진별 국가 개별 지정</p>
       </div>
     </div>
     <div class="hidden sm:flex items-center gap-2">
       <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-        10/12자리 정밀 규격 모드
+        자간 분리 자동 결합 활성
       </span>
     </div>
   </header>
@@ -73,7 +73,7 @@
                 <option value="China (중국)">China (중국)</option>
                 <option value="Global (기타)">Global (기타)</option>
               </select>
-              <p class="text-[11px] text-slate-400">사진을 올리면 이 국가가 기본 적용되며, 각 사진 카드에서 개별 변경할 수 있습니다.</p>
+              <p class="text-[11px] text-slate-400">사진 업로드 시 기본 적용되며, 각 사진 카드에서 개별 변경할 수 있습니다.</p>
             </div>
           </div>
         </div>
@@ -95,7 +95,7 @@
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
           </div>
           <p class="text-sm font-semibold text-slate-800">터치하여 갤러리 선택 또는 드래그 업로드</p>
-          <p class="text-xs text-slate-400 mt-1">상태바 노이즈 자동 제거 · 사진별 타이틀/국가 개별 관리</p>
+          <p class="text-xs text-slate-400 mt-1">10/12자리 정밀 복원 · 사진별 타이틀/국가 개별 관리</p>
         </div>
 
         <!-- 진행 상태 바 -->
@@ -199,46 +199,50 @@
       return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     }
 
-    // [핵심] 상태바 8~9자리 노이즈를 배제하고, 정확히 10자리/12자리 키값만 정제하는 함수
-    function extractPreciseKeyCode(rawStr) {
-      if (!rawStr) return null;
-      let clean = rawStr.toUpperCase().trim();
+    // 10자리(AOS) 또는 12자리(iOS) 순수 키코드 슬라이싱 추출기
+    function findKeyCodesInLine(rawLine) {
+      if (!rawLine) return [];
+      let str = rawLine.toUpperCase();
 
-      // UI 텍스트 및 메타 정보 사전 차단
-      const blacklist = ['KITMANAGER', 'KITAIR', 'BULK', 'MANAGER', 'STATUS', 'SUCCESS', 'FAILED', 'MPROD', 'M_QQQ', 'M_PROD'];
-      if (blacklist.some(b => clean.includes(b))) return null;
+      // 메타 정보 라인은 통째로 스킵
+      if (str.includes('M_QQQ') || str.includes('M_PROD') || str.includes('현재') || str.includes('바꿀')) {
+        return [];
+      }
 
-      // 꼬리표 한글(성공, 대기 등) 제거
-      clean = clean.replace(/[가-힣]+.*$/, '');
-      // 영숫자만 남기기
-      clean = clean.replace(/[^A-Z0-9]/g, '');
+      // UI 텍스트 배제
+      const blacklist = ['KITMANAGER', 'KITAIR', 'BULK', 'MANAGER', 'STATUS', 'SUCCESS', 'FAILED'];
+      if (blacklist.some(b => str.includes(b))) return [];
 
-      // 메타코드 배제
-      if (clean.startsWith('HI') || clean.startsWith('M')) return null;
+      // 뒤에 붙은 한글(성공, 대기 등) 제거
+      str = str.replace(/[가-힣]+.*$/, '');
+      // 영숫자만 남기기 (공백 제거)
+      str = str.replace(/[^A-Z0-9]/g, '');
 
-      // 단순 날짜 형태(YYYYMMDD) 배제
-      if (/^\d{8,14}$/.test(clean)) return null;
+      // 날짜 형태(YYYYMMDD) 제외
+      if (/^\d{8,14}$/.test(str)) return [];
 
-      // 1. 12자리 이상인 경우 (12자리 키값 뒤에 NO, A, 체크마크 등이 붙은 경우)
-      // iOS 키값 정규 규격인 앞 12자리만 취득
-      if (clean.length >= 12) {
-        const candidate12 = clean.substring(0, 12);
-        // 영문과 숫자가 섞인 유효 키값 검증 (단순 영단어만 있는 경우 제외)
-        if (/^[A-Z0-9]{12}$/.test(candidate12)) {
-          return candidate12;
+      const results = [];
+
+      // 1. 12자리 키코드 검색 (12자리 이상일 때 맨 앞 12자리 추출)
+      if (str.length >= 12) {
+        const c12 = str.substring(0, 12);
+        // 숫자와 영문이 고루 섞여 있고, 단순 영단어가 아닌 키값
+        if (/^[0-9A-F]{12}$/.test(c12) || /^[A-Z0-9]{12}$/.test(c12)) {
+          results.push(c12);
+          return results;
         }
       }
 
-      // 2. 10자리 또는 11자리인 경우 (안드로이드 10자리 키값 뒤에 A 등이 붙은 경우)
-      if (clean.length === 10 || clean.length === 11) {
-        const candidate10 = clean.substring(0, 10);
-        if (/^[A-Z0-9]{10}$/.test(candidate10)) {
-          return candidate10;
+      // 2. 10자리 키코드 검색 (10자리 또는 11자리일 때 맨 앞 10자리 추출)
+      if (str.length >= 10 && str.length <= 11) {
+        const c10 = str.substring(0, 10);
+        if (/^[0-9A-F]{10}$/.test(c10) || /^[A-Z0-9]{10}$/.test(c10)) {
+          results.push(c10);
+          return results;
         }
       }
 
-      // [핵심] 8자리, 9자리(16044ALC0, 4354DIJE 등)는 상태바 노이즈이므로 무조건 제외!
-      return null;
+      return results;
     }
 
     async function processUploadedFiles(files) {
@@ -284,39 +288,35 @@
             }
           }
 
-          // 2. 키값 추출 (줄 단위 정밀 탐색)
+          // 2. 키값 추출 (줄 단위 전수 분할)
           const groupKeys = [];
           const lines = rawText.split(/[\r\n]+/);
 
           for (let line of lines) {
             line = line.trim();
             if (!line) continue;
-            // 앨범명 줄이나 현재 라인은 스킵
-            if (line.includes('바꿀 앨범') || line.includes('현재:')) continue;
 
-            // 전략 1: 줄 전체에서 공백을 제거하고 순수 키값 추출 (자간 분리된 52C9102 FD606 등 결합 복원)
-            const strippedLine = line.replace(/[가-힣]+.*$/, '').trim();
-            const compressed = strippedLine.replace(/\s+/g, '');
-            const candidateA = extractPreciseKeyCode(compressed);
-
-            if (candidateA && !groupKeys.includes(candidateA)) {
-              groupKeys.push(candidateA);
-              continue;
+            // 전략 1: 줄 단위 공백 압축 및 10/12자리 키코드 슬라이싱
+            const codes = findKeyCodesInLine(line);
+            for (let c of codes) {
+              if (!groupKeys.includes(c)) {
+                groupKeys.push(c);
+              }
             }
 
-            // 전략 2: 줄 내부에서 정규식으로 10~14자리 연속 영숫자 블록 매칭
-            const matches = strippedLine.match(/[A-Za-z0-9]{10,14}/g);
-            if (matches) {
-              for (let tok of matches) {
-                const candidateB = extractPreciseKeyCode(tok);
-                if (candidateB && !groupKeys.includes(candidateB)) {
-                  groupKeys.push(candidateB);
+            // 전략 2: 줄 내 단어 단위 보조 추출
+            const words = line.split(/[\s,]+/);
+            for (let w of words) {
+              const subCodes = findKeyCodesInLine(w);
+              for (let sc of subCodes) {
+                if (!groupKeys.includes(sc)) {
+                  groupKeys.push(sc);
                 }
               }
             }
           }
 
-          // 중복 사진 필터링
+          // 중복 사진 필터링: groupKeys의 모든 키값이 이미 등록된 경우만 중복 제외
           const isEntirelyDuplicate = groupKeys.length > 0 && groupKeys.every(k => globalKeyCodes.has(k));
 
           if (isEntirelyDuplicate) {
@@ -325,6 +325,7 @@
             continue;
           }
 
+          // 신규 유효 키값 등록
           const uniqueKeysForThisGroup = [];
           groupKeys.forEach(k => {
             if (!globalKeyCodes.has(k)) {
