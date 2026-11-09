@@ -27,15 +27,15 @@
       <div>
         <div class="flex items-center gap-2">
           <h1 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">샘플 벌크 키값 추출</h1>
-          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">콜아웃 완전 분리 엔진</span>
+          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">대용량 다건 스캔</span>
         </div>
-        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">타이틀: 한글/영문 지원 · 키값: 순수 영숫자 화이트리스트 100% 무손실 추출</p>
+        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">사진별 개별 타이틀/국가 관리 및 대량 키코드 자동 전수 추출 도구</p>
       </div>
     </div>
     <div class="hidden sm:flex items-center gap-2">
       <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-        하단 블록 순수 영숫자 모드 활성
+        대용량 연속 스캔 모드 가동 중
       </span>
     </div>
   </header>
@@ -95,7 +95,7 @@
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
           </div>
           <p class="text-sm font-semibold text-slate-800">터치하여 갤러리 선택 또는 드래그 업로드</p>
-          <p class="text-xs text-slate-400 mt-1">하단 블록 독립 크롭 · 늑준 포함 5건 전수 추출 보장</p>
+          <p class="text-xs text-slate-400 mt-1">대량 캡처 사진 지원 · 10건 이상 연속 키값 전수 추출</p>
         </div>
 
         <!-- 진행 상태 바 -->
@@ -211,26 +211,25 @@
       });
     }
 
-    // 콜아웃(블록) 분할 캔버스 크롭
+    // 콜아웃(블록) 분할 캔버스 크롭: 10건 이상 긴 스크롤 캡처 대응
     function cropCalloutSections(img) {
       const w = img.width;
       const h = img.height;
 
-      // 1. 상단 배너 블록 (타이틀용: 높이 10% ~ 26% 구간)
+      // 1. 상단 배너 블록 (타이틀용: 상단 8% ~ 25% 구간)
       const bannerCanvas = document.createElement('canvas');
       const bctx = bannerCanvas.getContext('2d');
-      const bY = Math.floor(h * 0.10);
-      const bH = Math.floor(h * 0.16);
+      const bY = Math.floor(h * 0.08);
+      const bH = Math.floor(h * 0.17);
       bannerCanvas.width = w;
       bannerCanvas.height = bH;
       bctx.drawImage(img, 0, bY, w, bH, 0, 0, w, bH);
 
-      // 2. 하단 카드 블록 (키값 전용: 높이 26% ~ 80% 구간만 크롭)
-      // 배너 아래 및 완료 버튼 위 영역만 타겟팅하여 상단바/하단탭 원천 차단
+      // 2. 하단 카드 블록 (키값 전용: 10건 이상 긴 목록도 수용하도록 하단 88%까지 크롭)
       const listCanvas = document.createElement('canvas');
       const lctx = listCanvas.getContext('2d');
-      const lY = Math.floor(h * 0.26);
-      const lH = Math.floor(h * 0.54);
+      const lY = Math.floor(h * 0.25);
+      const lH = Math.floor(h * 0.63);
       listCanvas.width = w;
       listCanvas.height = lH;
       lctx.drawImage(img, 0, lY, w, lH, 0, 0, w, lH);
@@ -241,7 +240,7 @@
       };
     }
 
-    // 하단 콜아웃 블록에서 순수 영숫자 키코드만 파싱 (한글 개입 없음)
+    // 순수 영숫자 키코드 파싱 (10건 이상 긴 리스트 전수 수집)
     function parsePureAlphanumericKeys(ocrText) {
       const detected = [];
       const lines = ocrText.split(/[\r\n]+/);
@@ -250,7 +249,7 @@
         let str = line.toUpperCase().trim();
         if (!str) continue;
 
-        // 메타 라인은 무조건 스킵
+        // 메타 라인 스킵
         if (str.includes('M_QQQ') || str.includes('M_PROD') || str.includes('CURRENT') || str.includes('KIT')) {
           continue;
         }
@@ -258,8 +257,7 @@
         // 공백 및 특수문자 제거 후 순수 영숫자만 압축
         str = str.replace(/[^A-Z0-9]/g, '');
 
-        // 1. 12자리 키코드 우선 매칭 (iOS 규격)
-        // 뒤에 체크마크 잔상이 붙더라도 앞 12자리만 정확히 취득
+        // 1. 12자리 키코드 (iOS 규격)
         if (str.length >= 12) {
           const c12 = str.substring(0, 12);
           if (/^[0-9A-Z]{12}$/.test(c12)) {
@@ -270,7 +268,7 @@
           }
         }
 
-        // 2. 10자리 키코드 매칭 (AOS 규격)
+        // 2. 10자리 키코드 (AOS 규격)
         if (str.length >= 10 && str.length <= 11) {
           const c10 = str.substring(0, 10);
           if (/^[0-9A-Z]{10}$/.test(c10)) {
@@ -291,10 +289,10 @@
 
       progressArea.classList.remove('hidden');
 
-      // 1. 타이틀 전용 워커 (한글 + 영어 동시 가동)
+      // 1. 타이틀 전용 워커 (한글 + 영어)
       const titleWorker = await Tesseract.createWorker(['kor', 'eng']);
       
-      // 2. 키값 전용 워커 (오직 순수 영어/숫자 화이트리스트만 가동 -> 한글 오인식 0%)
+      // 2. 키값 전용 워커 (순수 영숫자 화이트리스트 고정)
       const keyWorker = await Tesseract.createWorker('eng');
       await keyWorker.setParameters({
         tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
@@ -304,7 +302,7 @@
 
       for (let i = 0; i < fileList.length; i++) {
         const file = fileList[i];
-        progressText.innerText = `[${i + 1}/${fileList.length}] ${file.name} 콜아웃 분할 분석 중...`;
+        progressText.innerText = `[${i + 1}/${fileList.length}] ${file.name} 분석 중...`;
 
         try {
           const fileHash = await calculateFileHash(file);
@@ -316,10 +314,10 @@
           const previewUrl = URL.createObjectURL(file);
           const img = await loadImage(file);
 
-          // 1. 블록 물리적 분할 (상단 배너 vs 하단 리스트)
+          // 블록 물리적 분할 (상단 배너 vs 하단 카드 리스트)
           const { bannerUrl, listUrl } = cropCalloutSections(img);
 
-          // 2. 상단 배너에서만 타이틀 추출 (한글+영문)
+          // 상단 배너 타이틀 추출
           const bannerRet = await titleWorker.recognize(bannerUrl);
           const bannerText = bannerRet.data.text;
 
@@ -341,7 +339,7 @@
             }
           }
 
-          // 3. 하단 카드 블록에서만 키값 전수 추출 (순수 영숫자 전담 엔진)
+          // 하단 카드 블록 키값 전수 추출
           const listRet = await keyWorker.recognize(listUrl);
           const groupKeys = parsePureAlphanumericKeys(listRet.data.text);
 
