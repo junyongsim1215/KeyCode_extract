@@ -27,15 +27,15 @@
       <div>
         <div class="flex items-center gap-2">
           <h1 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">샘플 벌크 키값 추출</h1>
-          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">콜아웃 블록 감지</span>
+          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">사진별 국가 지정 & 불순물 제거</span>
         </div>
-        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">하단 블록을 픽셀 단위로 자동 탐지하여 8자리 이상 키값을 100% 전수 추출합니다.</p>
+        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">끝자리 불순물(NO, A 등) 자동 트리밍 및 사진 카드별 개별 국가 설정 지원</p>
       </div>
     </div>
     <div class="hidden sm:flex items-center gap-2">
       <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-        8자리+ 콜아웃 자동 분할 모드
+        10/12자리 정밀 캘리브레이션 활성
       </span>
     </div>
   </header>
@@ -51,9 +51,9 @@
         <div class="flex items-center justify-between mb-3.5 sm:mb-4">
           <div class="flex items-center gap-2">
             <span class="w-6 h-6 rounded-full bg-emerald-700 text-white text-xs font-bold flex items-center justify-center">1</span>
-            <h2 class="font-bold text-slate-800 text-sm sm:text-base">기본 출력 필드 설정</h2>
+            <h2 class="font-bold text-slate-800 text-sm sm:text-base">기본 작업 설정</h2>
           </div>
-          <span class="text-xs text-slate-400">엑셀 열 연동</span>
+          <span class="text-xs text-slate-400">초기 기본값</span>
         </div>
 
         <div class="space-y-3.5 sm:space-y-4">
@@ -62,19 +62,18 @@
             <input type="date" id="workDate" class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition">
           </div>
 
-          <!-- 출고 국가 -->
+          <!-- 기본 출고 국가 -->
           <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">Shipping Country (출고 국가)</label>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Default Country (기본 출고 국가)</label>
             <div class="space-y-2">
-              <select id="shippingCountry" class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition">
+              <select id="defaultShippingCountry" class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition">
                 <option value="Korea (대한민국)">Korea (대한민국)</option>
                 <option value="Japan (일본)">Japan (일본)</option>
                 <option value="USA (미국)">USA (미국)</option>
                 <option value="China (중국)">China (중국)</option>
                 <option value="Global (기타)">Global (기타)</option>
-                <option value="__custom__">✏️ 직접 입력...</option>
               </select>
-              <input type="text" id="customCountryInput" placeholder="출고 국가명을 직접 입력하세요" class="hidden w-full text-sm border border-emerald-400 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition">
+              <p class="text-[11px] text-slate-400">사진을 올리면 이 국가가 기본 적용되며, 각 사진 카드에서 개별 변경할 수 있습니다.</p>
             </div>
           </div>
         </div>
@@ -96,13 +95,13 @@
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
           </div>
           <p class="text-sm font-semibold text-slate-800">터치하여 갤러리 선택 또는 드래그 업로드</p>
-          <p class="text-xs text-slate-400 mt-1">하단 콜아웃 블록만 크롭 · 8자리 이상 전수 스캔</p>
+          <p class="text-xs text-slate-400 mt-1">키값 끝 불순물 자동 정제 · 사진별 개별 관리</p>
         </div>
 
         <!-- 진행 상태 바 -->
         <div id="progressArea" class="hidden mt-4 space-y-2">
           <div class="flex justify-between text-xs text-slate-600 font-semibold">
-            <span id="progressText">콜아웃 블록 탐지 및 분석 중...</span>
+            <span id="progressText">이미지 분석 중...</span>
             <span id="progressPercent">0%</span>
           </div>
           <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
@@ -126,7 +125,7 @@
             </h2>
             <span id="totalKeyCountBadge" class="text-xs bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">총 0건</span>
           </div>
-          <p class="text-[11px] text-slate-400 mt-1">각 사진 카드의 타이틀명을 확인 후 수정하시면 엑셀/CSV에 즉시 일괄 적용됩니다.</p>
+          <p class="text-[11px] text-slate-400 mt-1">각 사진 카드의 타이틀과 출고 국가를 개별 설정할 수 있습니다.</p>
         </div>
 
         <div class="flex items-center gap-2">
@@ -175,25 +174,7 @@
     const photoGroupContainer = document.getElementById('photoGroupContainer');
     const emptyState = document.getElementById('emptyState');
     const totalKeyCountBadge = document.getElementById('totalKeyCountBadge');
-
-    const shippingCountrySelect = document.getElementById('shippingCountry');
-    const customCountryInput = document.getElementById('customCountryInput');
-
-    shippingCountrySelect.addEventListener('change', () => {
-      if (shippingCountrySelect.value === '__custom__') {
-        customCountryInput.classList.remove('hidden');
-        customCountryInput.focus();
-      } else {
-        customCountryInput.classList.add('hidden');
-      }
-    });
-
-    function getSelectedCountry() {
-      if (shippingCountrySelect.value === '__custom__') {
-        return customCountryInput.value.trim() || '기타';
-      }
-      return shippingCountrySelect.value;
-    }
+    const defaultShippingCountrySelect = document.getElementById('defaultShippingCountry');
 
     dropZone.addEventListener('click', () => fileInput.click());
     dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('border-emerald-500', 'bg-emerald-50/40'); });
@@ -218,111 +199,58 @@
       return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     }
 
-    function loadImage(file) {
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const img = new Image();
-          img.onload = () => resolve(img);
-          img.src = e.target.result;
-        };
-        reader.readAsDataURL(file);
-      });
-    }
+    // [핵심] 키값 끝 불순물(NO, A, V 등) 제거 및 10/12자리 규격 정밀 보정 함수
+    function cleanAndValidateKeyCode(rawStr) {
+      if (!rawStr) return null;
+      let clean = rawStr.toUpperCase().trim();
 
-    // [핵심] 상하단 콜아웃 블록의 실제 픽셀 경계선을 자동 감지하여 캔버스 크롭
-    function detectAndCropBlocks(img) {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      const w = img.width;
-      const h = img.height;
-      canvas.width = w;
-      canvas.height = h;
-      ctx.drawImage(img, 0, 0);
-
-      const imgData = ctx.getImageData(0, 0, w, h);
-      const data = imgData.data;
-
-      // 이미지 중심 x축 기준으로 상단 배너 블록과 하단 키값 블록 사이의 빈 간격(배경색)을 감지
-      const midX = Math.floor(w / 2);
-      let topBannerStartY = -1;
-      let topBannerEndY = -1;
-      let bottomListStartY = -1;
-
-      // 1. 위에서 아래로 스캔하여 상단 배너 블록의 시작/끝 지점 탐색
-      for (let y = Math.floor(h * 0.05); y < Math.floor(h * 0.40); y++) {
-        const idx = (y * w + midX) * 4;
-        const r = data[idx], g = data[idx + 1], b = data[idx + 2];
-
-        // 회색/흰색 배경(#F2F2F7 등)이 아닌 배너 색상(연두, 보라 등 채도가 있는 색) 감지
-        const isColored = Math.abs(r - g) > 15 || Math.abs(g - b) > 15 || Math.abs(r - b) > 15;
-        if (isColored) {
-          if (topBannerStartY === -1) topBannerStartY = y;
-          topBannerEndY = y;
-        } else {
-          if (topBannerEndY !== -1 && (y - topBannerEndY) > 15) {
-            break; // 배너 영역 통과 완료
-          }
-        }
-      }
-
-      // 배너를 찾지 못한 경우(폰트나 테마 차이) 안전 마진 적용
-      if (topBannerStartY === -1) {
-        topBannerStartY = Math.floor(h * 0.12);
-        topBannerEndY = Math.floor(h * 0.25);
-      }
-
-      // 2. 하단 리스트 블록 시작 지점 탐색 (상단 배너 끝 + 여백 이후)
-      bottomListStartY = topBannerEndY + Math.floor(h * 0.02);
-
-      // 하단 완료 버튼 및 네비게이션바 시작 전까지만 크롭 (높이의 80% 부근)
-      const bottomListEndY = Math.floor(h * 0.81);
-
-      // [상단 배너 캔버스]
-      const bannerCanvas = document.createElement('canvas');
-      const bctx = bannerCanvas.getContext('2d');
-      const bW = Math.floor(w * 0.94);
-      const bH = (topBannerEndY - topBannerStartY) + 20;
-      bannerCanvas.width = bW;
-      bannerCanvas.height = bH;
-      bctx.drawImage(img, Math.floor(w * 0.03), Math.max(0, topBannerStartY - 10), bW, bH, 0, 0, bW, bH);
-
-      // [하단 리스트 캔버스: 키값 전용]
-      const listCanvas = document.createElement('canvas');
-      const lctx = listCanvas.getContext('2d');
-      const lW = Math.floor(w * 0.94);
-      const lH = bottomListEndY - bottomListStartY;
-      listCanvas.width = lW;
-      listCanvas.height = lH;
-      lctx.drawImage(img, Math.floor(w * 0.03), bottomListStartY, lW, lH, 0, 0, lW, lH);
-
-      return {
-        bannerUrl: bannerCanvas.toDataURL('image/png'),
-        listUrl: listCanvas.toDataURL('image/png')
-      };
-    }
-
-    // 8자리부터 20자리까지 순수 키코드 정제 함수
-    function sanitizeGenericKeyCode(str) {
-      if (!str) return null;
-      let clean = str.toUpperCase().trim();
-
-      // 한글 및 체크마크 꼬리표 강제 분리
-      clean = clean.replace(/[가-힣]+.*$/, '');
-      clean = clean.replace(/[^A-Z0-9\-]/g, '');
-
-      // 메타 및 시스템 텍스트 배제
+      // UI 텍스트 및 메타 정보 사전 차단
       const blacklist = ['KITMANAGER', 'KITAIR', 'BULK', 'MANAGER', 'STATUS', 'SUCCESS', 'FAILED', 'MPROD', 'M_QQQ', 'M_PROD'];
       if (blacklist.some(b => clean.includes(b))) return null;
-      if (clean.startsWith('HI') || clean.startsWith('M_')) return null;
 
-      // [사용자 요구 반영] 8자리 이상부터 20자리 이하까지 허용
-      if (/^[A-Z0-9]{8,20}$/.test(clean) || /^[A-Z0-9]{3,}(?:-[A-Z0-9]{3,})+$/.test(clean)) {
-        // 단순 날짜 형태(YYYYMMDD) 제외
-        if (!/^\d{8}$/.test(clean)) {
-          return clean;
+      // 뒤에 붙은 한글(성공, 실패 등) 분리
+      clean = clean.replace(/[가-힣]+.*$/, '');
+      // 영숫자만 남기기
+      clean = clean.replace(/[^A-Z0-9]/g, '');
+
+      if (clean.startsWith('HI') || clean.startsWith('M')) return null;
+
+      // 날짜 형태(YYYYMMDD) 배제
+      if (/^\d{8,14}$/.test(clean)) return null;
+
+      // 1. 만약 길이가 12자리보다 긴 경우 (예: 12자리 키값 + 체크마크 잡음 NO, A 등 붙은 13~15자리)
+      // 실제 앱 키코드는 12자리가 정규 규격이므로 앞 12자리만 취득
+      if (clean.length > 12) {
+        const trimmed12 = clean.substring(0, 12);
+        // 잘라낸 12자리가 유효한 영숫자 조합인지 확인
+        if (/^[A-Z0-9]{12}$/.test(trimmed12)) {
+          return trimmed12;
         }
       }
+
+      // 2. 정확히 12자리인 경우 (iOS 표준 키코드)
+      if (clean.length === 12 && /^[A-Z0-9]{12}$/.test(clean)) {
+        return clean;
+      }
+
+      // 3. 만약 길이가 10자리보다 긴 11자리인 경우 (예: 10자리 키값 + 잡음 A)
+      if (clean.length === 11) {
+        const trimmed10 = clean.substring(0, 10);
+        if (/^[A-Z0-9]{10}$/.test(trimmed10)) {
+          return trimmed10;
+        }
+      }
+
+      // 4. 정확히 10자리인 경우 (안드로이드 표준 키코드)
+      if (clean.length === 10 && /^[A-Z0-9]{10}$/.test(clean)) {
+        return clean;
+      }
+
+      // 5. 기타 가변 8~9자리 키값 수용
+      if (clean.length >= 8 && clean.length <= 9 && /^[A-Z0-9]{8,9}$/.test(clean)) {
+        return clean;
+      }
+
       return null;
     }
 
@@ -331,15 +259,13 @@
       if (fileList.length === 0) return;
 
       progressArea.classList.remove('hidden');
-      
-      // 상단 배너용 (한글+영문) & 하단 리스트용 (영숫자 집중)
       const worker = await Tesseract.createWorker(['kor', 'eng']);
 
       let skippedDuplicateCount = 0;
 
       for (let i = 0; i < fileList.length; i++) {
         const file = fileList[i];
-        progressText.innerText = `[${i + 1}/${fileList.length}] 콜아웃 블록 자동 분할 스캔 중...`;
+        progressText.innerText = `[${i + 1}/${fileList.length}] ${file.name} 정밀 분석 중...`;
 
         try {
           const fileHash = await calculateFileHash(file);
@@ -349,24 +275,19 @@
           }
 
           const previewUrl = URL.createObjectURL(file);
-          const img = await loadImage(file);
+          const ret = await worker.recognize(file);
+          const rawText = ret.data.text;
 
-          // 1. 픽셀 기반 콜아웃 블록 분할
-          const { bannerUrl, listUrl } = detectAndCropBlocks(img);
-
-          // 2. 상단 배너에서만 타이틀 추출
-          const bannerRet = await worker.recognize(bannerUrl);
-          const bannerText = bannerRet.data.text;
-
+          // 1. 타이틀 파싱
           let autoTitle = '';
-          const match = bannerText.match(/(?:바꿀\s*앨범|바꿀)\s*[:：]?\s*([^\n\r]+)/i);
+          const match = rawText.match(/(?:바꿀\s*앨범|바꿀)\s*[:：]?\s*([^\n\r]+)/i);
           if (match && match[1]) {
             let t = match[1].trim();
             const mIdx = t.search(/[\(\[\{]\s*[Mm]/);
             if (mIdx !== -1) t = t.substring(0, mIdx).trim();
             autoTitle = t.replace(/[:\/\\\-_]+$/, '').trim();
           } else {
-            const lines = bannerText.split(/[\r\n]+/);
+            const lines = rawText.split(/[\r\n]+/);
             const slashLine = lines.find(l => l.includes('/') && !l.includes('http') && !l.includes('성공'));
             if (slashLine) {
               let t = slashLine.replace(/.*(?:바꿀\s*앨범|바꿀)\s*[:：]?/, '').trim();
@@ -376,36 +297,31 @@
             }
           }
 
-          // 3. 하단 콜아웃 블록에서만 키값 전수 추출
-          const listRet = await worker.recognize(listUrl);
-          const listText = listRet.data.text;
-
+          // 2. 키값 추출 및 불순물 제거
           const groupKeys = [];
-          const lines = listText.split(/[\r\n]+/);
+          const lines = rawText.split(/[\r\n]+/);
 
           for (let line of lines) {
             line = line.trim();
             if (!line) continue;
-            if (line.includes('현재:')) continue; // 메타 정보 배제
+            if (line.includes('바꿀 앨범') || line.includes('현재:')) continue;
 
-            // 전략 A: 줄 전체에서 '성공' 떼어내고 공백 압축 (자간 분리된 52C9102 FD606 등 완벽 결합)
+            // 전략 1: 줄 단위 공백 압축 후 검증 (자간 분리 복원)
             const strippedLine = line.replace(/[가-힣]+.*$/, '').trim();
             const compressed = strippedLine.replace(/\s+/g, '');
-            const candidateA = sanitizeGenericKeyCode(compressed);
+            const candidateA = cleanAndValidateKeyCode(compressed);
 
             if (candidateA && !groupKeys.includes(candidateA)) {
               groupKeys.push(candidateA);
               continue;
             }
 
-            // 전략 B: 8자리 이상 영숫자 덩어리 정규식 추출
-            const matches = strippedLine.match(/[A-Za-z0-9]{8,20}/g);
-            if (matches) {
-              for (let tok of matches) {
-                const candidateB = sanitizeGenericKeyCode(tok);
-                if (candidateB && !groupKeys.includes(candidateB)) {
-                  groupKeys.push(candidateB);
-                }
+            // 전략 2: 토큰 단위 검증
+            const words = line.split(/[\s,]+/);
+            for (let word of words) {
+              const candidateB = cleanAndValidateKeyCode(word);
+              if (candidateB && !groupKeys.includes(candidateB)) {
+                groupKeys.push(candidateB);
               }
             }
           }
@@ -433,7 +349,7 @@
               id: Date.now() + Math.random(),
               fileHash: fileHash,
               date: document.getElementById('workDate').value || today,
-              country: getSelectedCountry(),
+              country: defaultShippingCountrySelect.value, // 기본 출고 국가 상속
               title: autoTitle || '타이틀을 입력하세요',
               keyCodes: uniqueKeysForThisGroup,
               previewUrl: previewUrl,
@@ -486,36 +402,55 @@
         card.className = 'photo-group-card bg-slate-50 border border-slate-200 rounded-xl p-4 shadow-sm space-y-3';
         
         card.innerHTML = `
-          <!-- 그룹 상단: 썸네일 + 타이틀 통합 인풋 + 삭제 -->
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-lg border border-slate-200">
+          <!-- 그룹 상단: 썸네일 + 타이틀 + 사진별 출고국가 선택 + 삭제 -->
+          <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-white p-3.5 rounded-lg border border-slate-200">
             <div class="flex items-center gap-3 flex-1 min-w-0">
-              <img src="${group.previewUrl}" class="w-12 h-12 object-cover rounded-lg border border-slate-200 shrink-0" alt="사진 미리보기">
-              <div class="flex-1 min-w-0">
-                <span class="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                  사진 #${gIdx + 1} (${group.keyCodes.length}개 키값)
-                </span>
+              <img src="${group.previewUrl}" class="w-14 h-14 object-cover rounded-lg border border-slate-200 shrink-0" alt="사진 미리보기">
+              <div class="flex-1 min-w-0 space-y-1.5">
+                <div class="flex items-center gap-2">
+                  <span class="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 shrink-0">
+                    사진 #${gIdx + 1} (${group.keyCodes.length}개 키값)
+                  </span>
+                  <span class="text-[11px] text-slate-400 truncate">${group.fileName}</span>
+                </div>
                 <input type="text" value="${group.title}" oninput="updateGroupTitle(${gIdx}, this.value)" 
-                  class="mt-1 w-full text-sm font-bold text-slate-800 bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 focus:border-emerald-500 rounded px-2.5 py-1.5 focus:outline-none transition" 
+                  class="w-full text-sm font-bold text-slate-800 bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 focus:border-emerald-500 rounded px-2.5 py-1.5 focus:outline-none transition" 
                   placeholder="이 사진의 타이틀명을 입력하세요">
               </div>
             </div>
-            <button onclick="removeGroup(${gIdx})" class="self-end sm:self-center text-xs text-red-500 hover:text-red-700 font-semibold px-2 py-1 rounded hover:bg-red-50 transition">
-              이 사진 삭제
-            </button>
+
+            <!-- 사진별 개별 출고 국가 선택기 -->
+            <div class="flex items-center gap-2 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100 shrink-0">
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs font-semibold text-slate-500 whitespace-nowrap">국가:</span>
+                <select onchange="updateGroupCountry(${gIdx}, this.value)" 
+                  class="text-xs font-semibold border border-slate-300 rounded-lg px-2.5 py-1.5 bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                  <option value="Korea (대한민국)" ${group.country === 'Korea (대한민국)' ? 'selected' : ''}>Korea (대한민국)</option>
+                  <option value="Japan (일본)" ${group.country === 'Japan (일본)' ? 'selected' : ''}>Japan (일본)</option>
+                  <option value="USA (미국)" ${group.country === 'USA (미국)' ? 'selected' : ''}>USA (미국)</option>
+                  <option value="China (중국)" ${group.country === 'China (중국)' ? 'selected' : ''}>China (중국)</option>
+                  <option value="Global (기타)" ${group.country === 'Global (기타)' ? 'selected' : ''}>Global (기타)</option>
+                </select>
+              </div>
+              <button onclick="removeGroup(${gIdx})" class="text-xs text-red-500 hover:text-red-700 font-semibold px-2 py-1 rounded hover:bg-red-50 transition ml-2">
+                삭제
+              </button>
+            </div>
           </div>
 
           <!-- 키값 리스트 -->
           <div class="bg-white rounded-lg border border-slate-200 divide-y divide-slate-100 overflow-hidden">
             ${group.keyCodes.length === 0 ? `
-              <div class="p-3 text-center text-xs text-slate-400">추출된 신규 8자리 이상 키값이 없습니다.</div>
+              <div class="p-3 text-center text-xs text-slate-400">추출된 키값이 없습니다.</div>
             ` : group.keyCodes.map((code, kIdx) => `
               <div class="flex items-center justify-between px-3.5 py-2 text-xs">
                 <div class="flex items-center gap-3">
                   <span class="text-slate-400 font-mono w-5">${kIdx + 1}</span>
-                  <span class="font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded select-all">${code}</span>
+                  <span class="font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded select-all tracking-wider">${code}</span>
+                  <span class="text-[11px] text-slate-400 font-mono">(${code.length}자리)</span>
                   <span class="text-slate-500 hidden sm:inline">| ${group.country}</span>
                 </div>
-                <button onclick="removeSingleKey(${gIdx}, ${kIdx})" class="text-slate-300 hover:text-red-500 transition">
+                <button onclick="removeSingleKey(${gIdx}, ${kIdx})" class="text-slate-300 hover:text-red-500 transition p-1">
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
               </div>
@@ -529,9 +464,18 @@
       totalKeyCountBadge.innerText = `총 ${grandTotalKeys}건`;
     }
 
+    // 사진별 타이틀 수정 연동
     window.updateGroupTitle = function(gIdx, newTitle) {
       if (photoGroups[gIdx]) {
         photoGroups[gIdx].title = newTitle;
+      }
+    };
+
+    // 사진별 개별 국가 수정 연동
+    window.updateGroupCountry = function(gIdx, newCountry) {
+      if (photoGroups[gIdx]) {
+        photoGroups[gIdx].country = newCountry;
+        renderPhotoGroups(); // 화면 표시 갱신
       }
     };
 
@@ -562,6 +506,7 @@
       }
     });
 
+    // 엑셀 클립보드 복사 (사진별 지정 국가 자동 반영)
     document.getElementById('copyExcelBtn').addEventListener('click', async () => {
       let totalKeys = 0;
       photoGroups.forEach(g => totalKeys += g.keyCodes.length);
@@ -583,6 +528,7 @@
       alert(`총 ${totalKeys}건의 데이터가 엑셀에 바로 붙여넣을 수 있도록 복사되었습니다!`);
     });
 
+    // CSV 파일 다운로드 (사진별 지정 국가 자동 반영)
     document.getElementById('downloadCsvBtn').addEventListener('click', () => {
       let totalKeys = 0;
       photoGroups.forEach(g => totalKeys += g.keyCodes.length);
