@@ -32,15 +32,15 @@
       <div>
         <div class="flex items-center gap-2">
           <h1 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">샘플 벌크 키값 추출</h1>
-          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">식별코드 제외 타이틀</span>
+          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">자동 타이틀 동기화</span>
         </div>
-        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">괄호 식별코드 자동 제거 (아티스트 / 앨범명만 추출) & 키값 100% 무손실 추출</p>
+        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">배너 단일행 타겟 스캔 & 다중 사진 간 타이틀 자동 전파</p>
       </div>
     </div>
     <div class="hidden sm:flex items-center gap-2">
       <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-        동적 타이틀 타겟팅 활성
+        자동 타이틀 상속 활성
       </span>
     </div>
   </header>
@@ -257,7 +257,7 @@
       });
     }
 
-    // 상단 배너 끝 지점을 픽셀로 감지하여 안드로이드와 iOS 자동 적응
+    // 상단 배너 위치 추적 및 타이틀 단일행 정밀 크롭
     function cropCalloutSections(img) {
       const w = img.width;
       const h = img.height;
@@ -288,22 +288,34 @@
         }
       }
 
-      // 1. 상단 배너 블록 크롭 (2배 업스케일링 적용)
+      const safeBannerStartY = bannerStartY !== -1 ? bannerStartY : Math.floor(h * 0.05);
+      const safeBannerEndY = bannerEndY !== -1 ? bannerEndY : Math.floor(h * 0.22);
+      const bannerHeight = safeBannerEndY - safeBannerStartY;
+
+      // 1. 배너 전체 크롭 (성공 수량 파싱용)
       const bannerCanvas = document.createElement('canvas');
       const bctx = bannerCanvas.getContext('2d');
-      const bY = bannerStartY !== -1 ? Math.max(0, bannerStartY - 5) : Math.floor(h * 0.05);
-      const bH = bannerEndY !== -1 ? (bannerEndY - bY + 10) : Math.floor(h * 0.20);
-      
-      bannerCanvas.width = w * 2;
-      bannerCanvas.height = bH * 2;
-      bctx.imageSmoothingEnabled = true;
-      bctx.imageSmoothingQuality = 'high';
-      bctx.drawImage(img, 0, bY, w, bH, 0, 0, w * 2, bH * 2);
+      bannerCanvas.width = w;
+      bannerCanvas.height = bannerHeight;
+      bctx.drawImage(img, 0, safeBannerStartY, w, bannerHeight, 0, 0, w, bannerHeight);
 
-      // 2. 하단 카드 블록 크롭 (배너 바로 아래부터 시작 - 키값 보존)
+      // 2. [핵심] 배너 내부 2번째 줄(타이틀 줄만 집중 타겟팅) 크롭 (3배 업스케일)
+      // 배너 상단 28% ~ 78% 구간만 집중 추출하여 '모두 성공'과 '성공 N' 줄을 물리적 배제
+      const titleCanvas = document.createElement('canvas');
+      const tctx = titleCanvas.getContext('2d');
+      const titleStartY = safeBannerStartY + Math.floor(bannerHeight * 0.26);
+      const titleHeight = Math.floor(bannerHeight * 0.52);
+
+      titleCanvas.width = w * 3;
+      titleCanvas.height = titleHeight * 3;
+      tctx.imageSmoothingEnabled = true;
+      tctx.imageSmoothingQuality = 'high';
+      tctx.drawImage(img, Math.floor(w * 0.04), titleStartY, Math.floor(w * 0.92), titleHeight, 0, 0, w * 3, titleHeight * 3);
+
+      // 3. 하단 카드 블록 크롭 (배너 바로 아래부터 시작 - 키값 보존)
       const listCanvas = document.createElement('canvas');
       const lctx = listCanvas.getContext('2d');
-      const lY = bannerEndY !== -1 ? (bannerEndY + Math.floor(h * 0.015)) : Math.floor(h * 0.19);
+      const lY = safeBannerEndY + Math.floor(h * 0.015);
       const lH = Math.floor(h * 0.64);
       listCanvas.width = w;
       listCanvas.height = lH;
@@ -311,87 +323,61 @@
 
       return {
         bannerUrl: bannerCanvas.toDataURL('image/png'),
+        titleUrl: titleCanvas.toDataURL('image/png'),
         listUrl: listCanvas.toDataURL('image/png')
       };
     }
 
-    // [핵심] 식별코드를 생략하고 '아티스트 / 앨범명'만 정밀 추출하는 함수
+    // 순수 '아티스트 / 앨범명' 추출 (식별코드 제외)
     function cleanTitleOnly(rawStr) {
       if (!rawStr) return '';
       let t = rawStr.trim();
 
-      // 1. 앞쪽 라벨 제거 (바꿀 앨범:, 바꿀 :, == 등)
+      // 앞쪽 라벨 제거
       t = t.replace(/^[^\s:]*(?:바꿀\s*앨범|바꿀|바굴|벼결)[:：]?\s*/i, '');
       t = t.replace(/^[=:\-_\s]+/, '');
 
-      // 2. 뒤쪽 식별코드 괄호 통째로 생략/제거
-      // 예: (M_KiTalbum), (M_PROD_002659_003_P), (HI_00000043...), (식별코드...)
+      // 뒤쪽 식별코드 괄호 통째로 제거
       t = t.replace(/\s*[\(\[\{][^\)\]\}]*[\)\]\}]\s*$/, '');
-      // 닫는 괄호가 OCR에서 잘린 경우: (M_ 또는 (HI_ 로 시작하면 그 뒤를 모두 삭제
       const openParenIdx = t.search(/[\(\[\{]\s*[MmHh]/);
       if (openParenIdx !== -1) {
         t = t.substring(0, openParenIdx);
       }
 
-      // 3. 앞뒤 불필요한 특수문자 정리
       t = t.replace(/^[:\/\\\-_]+|[:\/\\\-_]+$/g, '').trim();
       return t;
     }
 
-    // 상단 배너에서 식별코드 제외 타이틀 및 성공 수량 파싱
-    function parseBannerMetadata(bannerText) {
-      let title = '';
-      let targetSuccessCount = null;
+    // 타이틀 정밀 파싱
+    function extractTitleFromText(rawText) {
+      if (!rawText) return '';
+      const lines = rawText.split(/[\r\n]+/).map(l => l.trim()).filter(Boolean);
 
-      // 1. 성공 수량 파싱: '성공 20' 등
-      const countMatch = bannerText.match(/성공\s*[:：]?\s*(\d+)/i);
-      if (countMatch && countMatch[1]) {
-        targetSuccessCount = parseInt(countMatch[1], 10);
+      // 전략 A: 슬래시(/)가 포함된 행 탐색 (다국어 아티스트 / 타이틀 구조)
+      for (let line of lines) {
+        if (line.includes('/') && !line.includes('http') && !/성공|실패|대기|서교|모두/i.test(line)) {
+          const cleaned = cleanTitleOnly(line);
+          if (cleaned.length >= 2) return cleaned;
+        }
       }
 
-      const lines = bannerText.split(/[\r\n]+/).map(l => l.trim()).filter(Boolean);
-
-      // 2. 2번째 행(타이틀 줄) 타겟팅 추출
-      // 전략 A: '바꿀 앨범'이 포함된 줄에서 식별코드 제외 후 추출
+      // 전략 B: '바꿀 앨범'이 포함된 행
       for (let line of lines) {
         if (/바꿀\s*앨범|바꿀/i.test(line)) {
           const cleaned = cleanTitleOnly(line);
-          if (cleaned.length >= 2) {
-            title = cleaned;
-            break;
-          }
+          if (cleaned.length >= 2) return cleaned;
         }
       }
 
-      // 전략 B: 슬래시(/)가 포함된 줄 (아티스트 / 앨범명 형태)
-      if (!title) {
-        const slashLine = lines.find(l => l.includes('/') && !l.includes('http') && !l.includes('성공') && !l.includes('실패'));
-        if (slashLine) {
-          const cleaned = cleanTitleOnly(slashLine);
-          if (cleaned.length >= 2) {
-            title = cleaned;
-          }
+      // 전략 C: 상태 텍스트를 제외한 가장 긴 행
+      for (let line of lines) {
+        if (!/모두|성공|서교|서고|성교|실패|대기/i.test(line)) {
+          const cleaned = cleanTitleOnly(line);
+          if (cleaned.length >= 2) return cleaned;
         }
       }
 
-      // 전략 C: '모두 성공' 및 카운트 줄을 제외한 라인 중 유의미한 줄
-      if (!title) {
-        for (let line of lines) {
-          // '모두 성공', '서교', '성공 N' 등 상태 관련 단어 배제
-          if (!/모두|성공|서교|서고|성교|실패|대기/i.test(line)) {
-            const cleaned = cleanTitleOnly(line);
-            if (cleaned.length >= 2) {
-              title = cleaned;
-              break;
-            }
-          }
-        }
-      }
-
-      return {
-        title: title || '타이틀을 입력하세요',
-        targetSuccessCount: targetSuccessCount
-      };
+      return '';
     }
 
     // 유효한 순수 키값 판별 (10자리/12자리 Hex 기반) - 기존 완전 보존
@@ -421,7 +407,6 @@
 
         str = str.replace(/[^A-Z0-9]/g, '');
 
-        // 1. 12자리 키코드 (iOS 규격)
         if (str.length >= 12) {
           const c12 = str.substring(0, 12);
           if (isValidPureKey(c12)) {
@@ -432,7 +417,6 @@
           }
         }
 
-        // 2. 10자리 키코드 (안드로이드 규격)
         if (str.length >= 10 && str.length <= 11) {
           const c10 = str.substring(0, 10);
           if (isValidPureKey(c10)) {
@@ -453,7 +437,7 @@
 
       progressArea.classList.remove('hidden');
 
-      // 1. 타이틀 전용 워커 (핵심 언어 모델)
+      // 1. 타이틀 전용 워커 (핵심 모델)
       const titleWorker = await Tesseract.createWorker(['kor', 'eng', 'jpn', 'chi_sim']);
       
       // 2. 키값 전용 워커: 순수 영숫자 화이트리스트 고정 (키값 보존)
@@ -463,6 +447,12 @@
       });
 
       let skippedDuplicateCount = 0;
+      let sharedDiscoveredTitle = ''; // 동일 작업 배치 내 타이틀 자동 전파용
+
+      // 이전에 이미 등록된 타이틀이 있다면 기본 상속 후보로 활용
+      if (photoGroups.length > 0 && photoGroups[0].title && photoGroups[0].title !== '타이틀을 입력하세요') {
+        sharedDiscoveredTitle = photoGroups[0].title;
+      }
 
       for (let i = 0; i < fileList.length; i++) {
         const file = fileList[i];
@@ -478,13 +468,30 @@
           const previewUrl = URL.createObjectURL(file);
           const img = await loadImage(file);
 
-          const { bannerUrl, listUrl } = cropCalloutSections(img);
+          const { bannerUrl, titleUrl, listUrl } = cropCalloutSections(img);
 
-          // 타이틀 추출 (식별코드 생략 적용)
+          // 1. 배너 전체에서 성공 수량 파싱
           const bannerRet = await titleWorker.recognize(bannerUrl);
-          const meta = parseBannerMetadata(bannerRet.data.text);
+          const countMatch = bannerRet.data.text.match(/성공\s*[:：]?\s*(\d+)/i);
+          const targetSuccessCount = countMatch && countMatch[1] ? parseInt(countMatch[1], 10) : null;
 
-          // 하단 키값 전수 추출 (기존 로직 보존)
+          // 2. 타이틀 줄 집중 타겟팅 크롭 영역에서 타이틀 추출
+          const titleRet = await titleWorker.recognize(titleUrl);
+          let extractedTitle = extractTitleFromText(titleRet.data.text);
+
+          // 만약 타겟 크롭에서 놓친 경우 배너 전체 텍스트에서 보조 탐색
+          if (!extractedTitle) {
+            extractedTitle = extractTitleFromText(bannerRet.data.text);
+          }
+
+          // 3. [완전 자동 상속] 유효한 타이틀이 잡히면 배치 전파 변수에 갱신, 못 잡으면 앞서 잡힌 타이틀 자동 적용
+          if (extractedTitle && extractedTitle.length >= 2) {
+            sharedDiscoveredTitle = extractedTitle;
+          } else if (sharedDiscoveredTitle) {
+            extractedTitle = sharedDiscoveredTitle;
+          }
+
+          // 4. 하단 키값 전수 추출 (기존 로직 보존)
           const listRet = await keyWorker.recognize(listUrl);
           const rawGroupKeys = parsePureAlphanumericKeys(listRet.data.text);
 
@@ -503,8 +510,8 @@
               fileHash: fileHash,
               date: document.getElementById('workDate').value || today,
               country: defaultShippingCountrySelect.value,
-              title: meta.title,
-              targetSuccessCount: meta.targetSuccessCount,
+              title: extractedTitle || sharedDiscoveredTitle || '타이틀을 입력하세요',
+              targetSuccessCount: targetSuccessCount,
               keyCodes: uniqueKeysForThisGroup,
               previewUrl: previewUrl,
               fileName: file.name
@@ -521,6 +528,15 @@
         const pct = Math.round(((i + 1) / fileList.length) * 100);
         progressBar.style.width = `${pct}%`;
         progressPercent.innerText = `${pct}%`;
+      }
+
+      // 배치 처리 완료 후, 발견된 정확한 타이틀이 있다면 타이틀이 미정이던 다른 카드들에도 전부 자동 전파
+      if (sharedDiscoveredTitle) {
+        photoGroups.forEach(g => {
+          if (!g.title || g.title === '타이틀을 입력하세요') {
+            g.title = sharedDiscoveredTitle;
+          }
+        });
       }
 
       await titleWorker.terminate();
