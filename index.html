@@ -32,15 +32,15 @@
       <div>
         <div class="flex items-center gap-2">
           <h1 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">샘플 벌크 키값 추출</h1>
-          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">슬래시(/) 검증 모드</span>
+          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">타이틀 무결성 완성본</span>
         </div>
-        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">아티스트 / 앨범명 구조 정밀 검증 & 키값 100% 무손실 추출</p>
+        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">연두/연보라 배너 색상 적응 & 식별코드 제외 아티스트/타이틀 자동 추출</p>
       </div>
     </div>
     <div class="hidden sm:flex items-center gap-2">
       <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-        슬래시 기반 정규식 필터 활성
+        동적 배너 적응 활성
       </span>
     </div>
   </header>
@@ -257,7 +257,7 @@
       });
     }
 
-    // [핵심] 1열 '모두 성공' 침범을 완전히 차단하는 정밀 타겟 크롭 (배너 38% ~ 68%)
+    // [정밀] 연보라/연두 배너 감지 및 상하 블록 분할
     function cropCalloutSections(img) {
       const w = img.width;
       const h = img.height;
@@ -279,8 +279,12 @@
         const idx = (y * w + midX) * 4;
         const r = data[idx], g = data[idx + 1], b = data[idx + 2];
 
-        const isBannerColor = (b > g + 6 && r > g + 4) || (g > r + 8 && g > b + 8);
-        if (isBannerColor) {
+        // 1. 연보라색 배너: R, B가 G보다 뚜렷하게 큼 (김건모 AOS)
+        // 2. 연두색 배너: G가 R, B보다 뚜렷하게 큼 (윤새/늑준/뮤즈라이브 iOS)
+        const isPurpleBanner = (r > 200 && b > 210 && g < b && (r - g) > 6 && (b - g) > 8);
+        const isGreenBanner  = (g > 200 && g > r + 6 && g > b + 6);
+
+        if (isPurpleBanner || isGreenBanner) {
           if (bannerStartY === -1) bannerStartY = y;
           bannerEndY = y;
         } else if (bannerEndY !== -1 && (y - bannerEndY) > 8) {
@@ -292,26 +296,16 @@
       const safeBannerEndY = bannerEndY !== -1 ? bannerEndY : Math.floor(h * 0.22);
       const bannerHeight = safeBannerEndY - safeBannerStartY;
 
-      // 1. 배너 전체 크롭 (성공 수량 확인용)
+      // 1. 배너 전체 크롭 (2배 고해상도 렌더링으로 글자 뭉개짐 방지)
       const bannerCanvas = document.createElement('canvas');
       const bctx = bannerCanvas.getContext('2d');
-      bannerCanvas.width = w;
-      bannerCanvas.height = bannerHeight;
-      bctx.drawImage(img, 0, safeBannerStartY, w, bannerHeight, 0, 0, w, bannerHeight);
+      bannerCanvas.width = w * 2;
+      bannerCanvas.height = bannerHeight * 2;
+      bctx.imageSmoothingEnabled = true;
+      bctx.imageSmoothingQuality = 'high';
+      bctx.drawImage(img, 0, safeBannerStartY, w, bannerHeight, 0, 0, w * 2, bannerHeight * 2);
 
-      // 2. 타이틀 전용 2번째 줄 크롭: 1열 '모두 성공'과 3열 '성공 카운트'를 완전히 배제하는 38% ~ 68% 구간
-      const titleCanvas = document.createElement('canvas');
-      const tctx = titleCanvas.getContext('2d');
-      const tY = safeBannerStartY + Math.floor(bannerHeight * 0.38);
-      const tH = Math.floor(bannerHeight * 0.30);
-      const tX = 0; // 좌측 글자 잘림 방지를 위해 폭 전체 확보
-      const tW = w;
-
-      titleCanvas.width = tW;
-      titleCanvas.height = tH;
-      tctx.drawImage(img, tX, tY, tW, tH, 0, 0, tW, tH);
-
-      // 3. 하단 카드 블록 크롭 (키값 전용 - 기존 규격 100% 보존)
+      // 2. 하단 리스트 블록 크롭 (키값 전용: 기존 로직 100% 보존)
       const listCanvas = document.createElement('canvas');
       const lctx = listCanvas.getContext('2d');
       const lY = safeBannerEndY + Math.floor(h * 0.015);
@@ -322,17 +316,16 @@
 
       return {
         bannerUrl: bannerCanvas.toDataURL('image/png'),
-        titleUrl: titleCanvas.toDataURL('image/png'),
         listUrl: listCanvas.toDataURL('image/png')
       };
     }
 
-    // [핵심] 식별코드 제거 및 '아티스트 / 앨범명' 추출
+    // 순수 '아티스트 / 앨범명' 추출 (식별코드 제거)
     function cleanTitleOnly(rawStr) {
       if (!rawStr) return '';
       let t = rawStr.trim();
 
-      // 앞쪽 시스템 라벨 제거 (바꿀 앨범:, 바꿀 :, 변경 결과 등)
+      // 앞쪽 시스템 라벨 제거
       t = t.replace(/^[^\s:]*(?:바꿀\s*앨범|바꿀|바굴|벼결|결과)[:：]?\s*/i, '');
       t = t.replace(/^[=:\-_\s|]+/, '');
 
@@ -343,45 +336,71 @@
         t = t.substring(0, openParenIdx);
       }
 
-      // 허용 특수기호(- _ / . , ! ?) 외 불필요한 기호 제거
-      t = t.replace(/[^0-9a-zA-Z가-힣\s\-_/.,!?]/g, '');
+      // 허용 특수기호 외 불필요한 기호 제거
+      t = t.replace(/[^0-9a-zA-Z가-힣\s\-_/.,!?()]/g, '');
       t = t.replace(/^[\-_/.,!?\s]+|[\-_/.,!?\s]+$/g, '').trim();
 
-      // 슬래시 양옆 공백 표준화 (아티스트 / 앨범명)
       if (t.includes('/')) {
         t = t.split('/').map(part => part.trim()).join(' / ');
       }
       return t;
     }
 
-    // [핵심] 슬래시(/)가 반드시 포함된 줄만 타이틀로 인정 (CH MR, 서교 원천 차단)
-    function extractTitleFromText(rawText) {
-      if (!rawText) return '';
-      const lines = rawText.split(/[\r\n]+/).map(l => l.trim()).filter(Boolean);
+    // 배너 텍스트 전체에서 타이틀 라인 정밀 추출
+    function parseBannerMetadata(bannerText) {
+      let title = '';
+      let targetSuccessCount = null;
 
-      for (let line of lines) {
-        // 타이틀 줄은 무조건 슬래시(/)를 포함해야 함
-        if (line.includes('/') && !line.includes('http') && !/성공|실패|대기|서교|모두|결과/i.test(line)) {
-          const cleaned = cleanTitleOnly(line);
-          // 아티스트 / 앨범명 구조 검증 (슬래시 앞뒤로 글자가 있어야 함)
-          const parts = cleaned.split('/');
-          if (parts.length >= 2 && parts[0].trim().length >= 1 && parts[1].trim().length >= 1) {
-            return cleaned;
-          }
-        }
+      // 1. 성공 수량 파싱
+      const countMatch = bannerText.match(/성공\s*[:：]?\s*(\d+)/i);
+      if (countMatch && countMatch[1]) {
+        targetSuccessCount = parseInt(countMatch[1], 10);
       }
 
-      // 슬래시가 누락되었거나 분리된 라인 중 바꿀 앨범 키워드가 명시된 경우
+      const lines = bannerText.split(/[\r\n]+/).map(l => l.trim()).filter(Boolean);
+
+      // 전략 A: '바꿀 앨범'이 명시된 줄에서 추출
       for (let line of lines) {
         if (/바꿀\s*앨범|바꿀/i.test(line)) {
           const cleaned = cleanTitleOnly(line);
-          if (cleaned.length >= 3 && !/모두|성공|서교/i.test(cleaned)) {
-            return cleaned;
+          if (cleaned.includes('/') && cleaned.length >= 3) {
+            title = cleaned;
+            break;
           }
         }
       }
 
-      return '';
+      // 전략 B: 슬래시(/)가 포함된 줄 (아티스트 / 앨범명 형태)
+      if (!title) {
+        for (let line of lines) {
+          if (line.includes('/') && !line.includes('http') && !/모두|성공|실패|대기|서교/i.test(line)) {
+            const cleaned = cleanTitleOnly(line);
+            const parts = cleaned.split('/');
+            if (parts.length >= 2 && parts[0].trim().length >= 1 && parts[1].trim().length >= 1) {
+              title = cleaned;
+              break;
+            }
+          }
+        }
+      }
+
+      // 전략 C: 식별코드 괄호 (M_... 또는 (HI_... 가 포함된 줄에서 괄호 앞 추출
+      if (!title) {
+        for (let line of lines) {
+          if (/[\(\[\{]\s*[MmHh]/i.test(line)) {
+            const cleaned = cleanTitleOnly(line);
+            if (cleaned.length >= 3 && !/모두|성공|서교/i.test(cleaned)) {
+              title = cleaned;
+              break;
+            }
+          }
+        }
+      }
+
+      return {
+        title: title || '타이틀을 입력하세요',
+        targetSuccessCount: targetSuccessCount
+      };
     }
 
     function isValidPureKey(str) {
@@ -439,12 +458,9 @@
 
       progressArea.classList.remove('hidden');
 
-      // 1. 타이틀 전용 워커 (kor + eng)
+      // 1. 타이틀 전용 워커 (한글 + 영문)
       const titleWorker = await Tesseract.createWorker(['kor', 'eng']);
-      await titleWorker.setParameters({
-        tessedit_char_whitelist: '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ가-힣-_/.,!?(): '
-      });
-
+      
       // 2. 키값 전용 워커 (순수 영숫자)
       const keyWorker = await Tesseract.createWorker('eng');
       await keyWorker.setParameters({
@@ -472,24 +488,15 @@
           const previewUrl = URL.createObjectURL(file);
           const img = await loadImage(file);
 
-          const { bannerUrl, titleUrl, listUrl } = cropCalloutSections(img);
+          const { bannerUrl, listUrl } = cropCalloutSections(img);
 
-          // 성공 수량 파싱
+          // 상단 배너 전체에서 타이틀 및 성공 수량 추출
           const bannerRet = await titleWorker.recognize(bannerUrl);
-          const countMatch = bannerRet.data.text.match(/성공\s*[:：]?\s*(\d+)/i);
-          const targetSuccessCount = countMatch && countMatch[1] ? parseInt(countMatch[1], 10) : null;
+          const meta = parseBannerMetadata(bannerRet.data.text);
+          let extractedTitle = meta.title;
 
-          // 타이틀 2열 정밀 분석
-          const titleRet = await titleWorker.recognize(titleUrl);
-          let extractedTitle = extractTitleFromText(titleRet.data.text);
-
-          // 타겟 영역에서 놓쳤을 때만 전체 배너 텍스트에서 보조 탐색
-          if (!extractedTitle) {
-            extractedTitle = extractTitleFromText(bannerRet.data.text);
-          }
-
-          // 자동 상속 처리 (슬래시가 포함된 정상 타이틀만 상속)
-          if (extractedTitle && extractedTitle.includes('/') && extractedTitle.length >= 3) {
+          // 타이틀 자동 상속 처리 (슬래시가 포함된 타이틀 우선)
+          if (extractedTitle && extractedTitle.includes('/') && extractedTitle !== '타이틀을 입력하세요') {
             sharedDiscoveredTitle = extractedTitle;
           } else if (sharedDiscoveredTitle) {
             extractedTitle = sharedDiscoveredTitle;
@@ -515,7 +522,7 @@
               date: document.getElementById('workDate').value || today,
               country: defaultShippingCountrySelect.value,
               title: extractedTitle || sharedDiscoveredTitle || '타이틀을 입력하세요',
-              targetSuccessCount: targetSuccessCount,
+              targetSuccessCount: meta.targetSuccessCount,
               keyCodes: uniqueKeysForThisGroup,
               previewUrl: previewUrl,
               fileName: file.name
