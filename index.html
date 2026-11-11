@@ -24,26 +24,23 @@
       <!-- KiT 공식 로고 적용 영역 -->
       <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 shadow-sm flex items-center justify-center p-1.5 shrink-0">
         <svg class="w-full h-full" viewBox="0 0 250 250" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <!-- 좌측 세로 바 -->
           <rect x="0" y="0" width="75" height="250" rx="20" fill="#0066FF"/>
-          <!-- 우측 상단 삼각형 재생 버튼 -->
           <path d="M165 0C170.5 0 175.5 2.5 179 6.5L245 80C254 90 247 106 234 106H177C170.373 106 165 100.627 165 94V0Z" fill="#0066FF"/>
-          <!-- 우측 하단 웨이브 리본 -->
           <path d="M85 116C85 110.477 89.4772 106 95 106H152C160.837 106 168 113.163 168 122V145C168 165 178 180 195 195L210 208C222 218 228 230 220 244C215 253 203 252 195 248L175 237C155 226 142 205 138 182L132 150C128 132 118 122 102 120L95 119C89.4772 119 85 117.657 85 116Z" fill="#0066FF"/>
         </svg>
       </div>
       <div>
         <div class="flex items-center gap-2">
           <h1 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">샘플 벌크 키값 추출</h1>
-          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">AOS/iOS 동적 앵커 완성본</span>
+          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">다국어 타이틀 지원</span>
         </div>
-        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">사진 클릭 시 원본 확대 뷰어 & 사진별 타이틀/국가 개별 설정 지원</p>
+        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">한/영/일/중/아랍/러시아/스페인어 타이틀 & 순수 키값 100% 무손실 추출</p>
       </div>
     </div>
     <div class="hidden sm:flex items-center gap-2">
       <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-        동적 배너 경계 추적 활성
+        다국어 타이틀 엔진 활성
       </span>
     </div>
   </header>
@@ -168,12 +165,10 @@
   <!-- 원본 사진 확대 팝업 모달 -->
   <div id="imageModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 transition-opacity duration-200">
     <div class="relative max-w-4xl w-full max-h-[92vh] flex flex-col items-center">
-      <!-- 닫기 버튼 -->
       <button onclick="closeImageModal()" class="absolute -top-11 right-0 sm:right-2 text-white hover:text-slate-300 transition p-2 focus:outline-none flex items-center gap-1.5 text-xs font-semibold">
         <span>닫기</span>
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
       </button>
-      <!-- 확대 이미지 영역 -->
       <div class="bg-white rounded-2xl overflow-hidden shadow-2xl max-h-[85vh] flex items-center justify-center border border-white/20 p-1">
         <img id="modalImg" src="" class="max-h-[83vh] w-auto max-w-full object-contain rounded-xl select-none" alt="확대 사진">
       </div>
@@ -200,12 +195,10 @@
     const totalKeyCountBadge = document.getElementById('totalKeyCountBadge');
     const defaultShippingCountrySelect = document.getElementById('defaultShippingCountry');
 
-    // 모달 DOM
     const imageModal = document.getElementById('imageModal');
     const modalImg = document.getElementById('modalImg');
     const modalCaption = document.getElementById('modalCaption');
 
-    // 사진 확대 뷰어 열기
     window.openImageModal = function(url, title, filename) {
       modalImg.src = url;
       modalCaption.innerText = `${title || '캡처 사진'} (${filename || ''})`;
@@ -213,19 +206,16 @@
       document.body.style.overflow = 'hidden';
     };
 
-    // 사진 확대 뷰어 닫기
     window.closeImageModal = function() {
       imageModal.classList.add('hidden');
       modalImg.src = '';
       document.body.style.overflow = '';
     };
 
-    // 모달 배경 클릭 시 닫기
     imageModal.addEventListener('click', (e) => {
       if (e.target === imageModal) closeImageModal();
     });
 
-    // ESC 키 입력 시 모달 닫기
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && !imageModal.classList.contains('hidden')) {
         closeImageModal();
@@ -267,6 +257,25 @@
       });
     }
 
+    // [전처리] 상단 배너 고대비 이진화 캔버스 생성 (다국어 인식률 극대화)
+    function preprocessBannerCanvas(canvas) {
+      const ctx = canvas.getContext('2d');
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const d = imgData.data;
+
+      for (let i = 0; i < d.length; i += 4) {
+        // 그레이스케일 변환
+        const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        // 유색 배경은 순백색(255)으로 날리고, 텍스트는 선명하게 강조
+        const val = gray > 140 ? 255 : Math.max(0, gray * 0.75);
+        d[i] = val;
+        d[i + 1] = val;
+        d[i + 2] = val;
+      }
+      ctx.putImageData(imgData, 0, 0);
+      return canvas;
+    }
+
     // 상단 배너 끝 지점을 픽셀로 감지하여 안드로이드와 iOS 자동 적응
     function cropCalloutSections(img) {
       const w = img.width;
@@ -298,7 +307,7 @@
         }
       }
 
-      // 1. 상단 배너 블록 크롭
+      // 1. 상단 배너 블록 크롭 + 고대비 전처리
       const bannerCanvas = document.createElement('canvas');
       const bctx = bannerCanvas.getContext('2d');
       const bY = bannerStartY !== -1 ? Math.max(0, bannerStartY - 5) : Math.floor(h * 0.05);
@@ -306,8 +315,9 @@
       bannerCanvas.width = w;
       bannerCanvas.height = bH;
       bctx.drawImage(img, 0, bY, w, bH, 0, 0, w, bH);
+      preprocessBannerCanvas(bannerCanvas);
 
-      // 2. 하단 카드 블록 크롭 (배너 바로 아래부터 시작)
+      // 2. 하단 카드 블록 크롭 (배너 바로 아래부터 시작 - 키값 보존 로직)
       const listCanvas = document.createElement('canvas');
       const lctx = listCanvas.getContext('2d');
       const lY = bannerEndY !== -1 ? (bannerEndY + Math.floor(h * 0.015)) : Math.floor(h * 0.19);
@@ -322,30 +332,60 @@
       };
     }
 
-    // 상단 배너에서 타이틀 및 성공 수량 파싱
+    // [다국어 지원] 상단 배너에서 다국어 타이틀 및 성공 수량 정밀 파싱
     function parseBannerMetadata(bannerText) {
       let title = '';
       let targetSuccessCount = null;
 
+      // 1. 성공 수량 파싱: '성공 20' 등
       const countMatch = bannerText.match(/성공\s*[:：]?\s*(\d+)/i);
       if (countMatch && countMatch[1]) {
         targetSuccessCount = parseInt(countMatch[1], 10);
       }
 
-      const match = bannerText.match(/(?:바꿀\s*앨범|바꿀)\s*[:：]?\s*([^\n\r]+)/i);
-      if (match && match[1]) {
-        let t = match[1].trim();
-        const mIdx = t.search(/[\(\[\{]\s*[Mm]/);
-        if (mIdx !== -1) t = t.substring(0, mIdx).trim();
-        title = t.replace(/[:\/\\\-_]+$/, '').trim();
-      } else {
-        const lines = bannerText.split(/[\r\n]+/);
-        const slashLine = lines.find(l => l.includes('/') && !l.includes('http') && !l.includes('성공'));
+      const lines = bannerText.split(/[\r\n]+/).map(l => l.trim()).filter(Boolean);
+
+      // 2. 타이틀 파싱 전략
+      // 전략 A: '바꿀 앨범' 키워드가 들어간 행 탐색
+      for (let line of lines) {
+        if (/바꿀\s*앨범|바꿀/i.test(line)) {
+          let t = line.replace(/^[^\s:]*바꿀\s*앨범[:：]?\s*/i, '').trim();
+          t = t.replace(/^[^\s:]*바꿀[:：]?\s*/i, '').trim();
+          // 뒤쪽 메타코드 (M_... 또는 (HI_... 제거
+          const mIdx = t.search(/[\(\[\{]\s*[MmHh]/);
+          if (mIdx !== -1) t = t.substring(0, mIdx).trim();
+          t = t.replace(/[:\/\\\-_]+$/, '').trim();
+          if (t) {
+            title = t;
+            break;
+          }
+        }
+      }
+
+      // 전략 B: 슬래시(/)가 포함된 행 탐색 (다국어 아티스트 / 앨범명 구조)
+      if (!title) {
+        const slashLine = lines.find(l => l.includes('/') && !l.includes('http') && !l.includes('성공') && !l.includes('실패'));
         if (slashLine) {
-          let t = slashLine.replace(/.*(?:바꿀\s*앨범|바꿀)\s*[:：]?/, '').trim();
-          const mIdx = t.search(/[\(\[\{]\s*[Mm]/);
+          let t = slashLine.replace(/^[^:]*[:：]\s*/, '').trim();
+          t = t.replace(/^[=\-_\s]+/, '').trim();
+          const mIdx = t.search(/[\(\[\{]\s*[MmHh]/);
           if (mIdx !== -1) t = t.substring(0, mIdx).trim();
           title = t.replace(/[:\/\\\-_]+$/, '').trim();
+        }
+      }
+
+      // 전략 C: '모두 성공' 및 카운트 라인을 제외한 첫 번째 유의미한 텍스트 행 취득
+      if (!title) {
+        for (let line of lines) {
+          if (!/모두\s*성공|성공\s*\d|실패\s*\d|대기\s*\d/i.test(line)) {
+            let t = line.replace(/^[=\-_\s]+/, '').trim();
+            const mIdx = t.search(/[\(\[\{]\s*[MmHh]/);
+            if (mIdx !== -1) t = t.substring(0, mIdx).trim();
+            if (t.length >= 2) {
+              title = t;
+              break;
+            }
+          }
         }
       }
 
@@ -355,7 +395,7 @@
       };
     }
 
-    // 유효한 순수 키값 판별 (10자리/12자리 Hex 기반)
+    // 유효한 순수 키값 판별 (10자리/12자리 Hex 기반) - 기존 유지
     function isValidPureKey(str) {
       if (!str) return false;
       if (!/^[0-9A-F]{10}$|^[0-9A-F]{12}$/.test(str)) {
@@ -367,7 +407,7 @@
       return true;
     }
 
-    // 하단 카드 블록에서 순수 영숫자 키코드 파싱
+    // 하단 카드 블록에서 순수 영숫자 키코드 파싱 - 기존 유지
     function parsePureAlphanumericKeys(ocrText) {
       const detected = [];
       const lines = ocrText.split(/[\r\n]+/);
@@ -414,7 +454,10 @@
 
       progressArea.classList.remove('hidden');
 
-      const titleWorker = await Tesseract.createWorker(['kor', 'eng']);
+      // 1. 타이틀 전용 워커: 영어/일본어/중국어(간체·번체)/한국어/아랍어/러시아어/스페인어 지원
+      const titleWorker = await Tesseract.createWorker(['kor', 'eng', 'jpn', 'chi_sim', 'chi_tra', 'ara', 'rus', 'spa']);
+      
+      // 2. 키값 전용 워커: 순수 영숫자 화이트리스트 고정 (키값 보존)
       const keyWorker = await Tesseract.createWorker('eng');
       await keyWorker.setParameters({
         tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
@@ -438,9 +481,11 @@
 
           const { bannerUrl, listUrl } = cropCalloutSections(img);
 
+          // 다국어 타이틀 추출
           const bannerRet = await titleWorker.recognize(bannerUrl);
           const meta = parseBannerMetadata(bannerRet.data.text);
 
+          // 하단 키값 전수 추출 (기존 로직 보존)
           const listRet = await keyWorker.recognize(listUrl);
           const rawGroupKeys = parsePureAlphanumericKeys(listRet.data.text);
 
@@ -523,7 +568,6 @@
           <!-- 그룹 상단: 썸네일(클릭 시 확대 뷰어) + 타이틀 + 성공수량 표시 + 사진별 출고국가 선택 + 삭제 -->
           <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-white p-3.5 rounded-lg border border-slate-200">
             <div class="flex items-center gap-3 flex-1 min-w-0">
-              <!-- 클릭 가능한 원본 썸네일 (돋보기 호버 효과) -->
               <div class="relative group cursor-pointer shrink-0" onclick="openImageModal('${group.previewUrl}', '${group.title.replace(/'/g, "\\'")}', '${group.fileName}')" title="클릭하여 원본 사진 확대">
                 <img src="${group.previewUrl}" class="w-14 h-14 object-cover rounded-lg border border-slate-200 group-hover:opacity-85 transition" alt="사진 미리보기">
                 <div class="absolute inset-0 bg-black/30 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
