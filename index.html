@@ -27,15 +27,15 @@
       <div>
         <div class="flex items-center gap-2">
           <h1 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">샘플 벌크 키값 추출</h1>
-          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">성공 수량 앵커 & 중복 소거</span>
+          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">AOS/iOS 동적 앵커 완성본</span>
         </div>
-        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">배너 성공 수량 자동 파싱 & 다중 스크롤 사진 간 중복 키값 자동 소거</p>
+        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">상태바 유무 자동 판별 & 사진별 타이틀/국가 개별 설정 지원</p>
       </div>
     </div>
     <div class="hidden sm:flex items-center gap-2">
       <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-        스크롤 파편 차단 모드 가동 중
+        동적 배너 경계 추적 활성
       </span>
     </div>
   </header>
@@ -95,7 +95,7 @@
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
           </div>
           <p class="text-sm font-semibold text-slate-800">터치하여 갤러리 선택 또는 드래그 업로드</p>
-          <p class="text-xs text-slate-400 mt-1">스크롤 중복 키값 자동 제거 · 성공 수량 정밀 일치</p>
+          <p class="text-xs text-slate-400 mt-1">대량 캡처 사진 지원 · 10건 이상 연속 키값 전수 추출</p>
         </div>
 
         <!-- 진행 상태 바 -->
@@ -125,7 +125,7 @@
             </h2>
             <span id="totalKeyCountBadge" class="text-xs bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">총 0건</span>
           </div>
-          <p class="text-[11px] text-slate-400 mt-1">성공 수량에 맞춰 스크롤 중복 키값이 1건만 남고 자동 소거되었습니다.</p>
+          <p class="text-[11px] text-slate-400 mt-1">각 사진 카드의 타이틀과 출고 국가를 개별 설정할 수 있습니다.</p>
         </div>
 
         <div class="flex items-center gap-2">
@@ -211,25 +211,55 @@
       });
     }
 
-    // 콜아웃(블록) 분할 캔버스 크롭: 위아래 반토막 파편을 방지하는 안전 마진 적용
+    // [핵심] 상단 배너 끝 지점을 픽셀로 감지하여 안드로이드(상태바 없음)와 iOS(상태바 있음) 완벽 적응
     function cropCalloutSections(img) {
       const w = img.width;
       const h = img.height;
 
-      // 1. 상단 배너 블록 (타이틀 및 성공 수량 파싱용)
+      // 임시 캔버스로 배너 하단 경계(Y) 추적
+      const tempCanvas = document.createElement('canvas');
+      const tempCtx = tempCanvas.getContext('2d');
+      tempCanvas.width = w;
+      tempCanvas.height = h;
+      tempCtx.drawImage(img, 0, 0);
+
+      const imgData = tempCtx.getImageData(0, 0, w, h);
+      const data = imgData.data;
+
+      const midX = Math.floor(w / 2);
+      let bannerStartY = -1;
+      let bannerEndY = -1;
+
+      // Y축 스캔 (5% ~ 35% 구간)
+      for (let y = Math.floor(h * 0.03); y < Math.floor(h * 0.35); y++) {
+        const idx = (y * w + midX) * 4;
+        const r = data[idx], g = data[idx + 1], b = data[idx + 2];
+
+        // 보라색 배너(R, B > G) 또는 연두색 배너(G > R, B) 감지
+        const isBannerColor = (b > g + 6 && r > g + 4) || (g > r + 8 && g > b + 8);
+        if (isBannerColor) {
+          if (bannerStartY === -1) bannerStartY = y;
+          bannerEndY = y;
+        } else if (bannerEndY !== -1 && (y - bannerEndY) > 6) {
+          break; // 배너 영역 통과 완료
+        }
+      }
+
+      // 1. 상단 배너 블록 크롭
       const bannerCanvas = document.createElement('canvas');
       const bctx = bannerCanvas.getContext('2d');
-      const bY = Math.floor(h * 0.08);
-      const bH = Math.floor(h * 0.17);
+      const bY = bannerStartY !== -1 ? Math.max(0, bannerStartY - 5) : Math.floor(h * 0.05);
+      const bH = bannerEndY !== -1 ? (bannerEndY - bY + 10) : Math.floor(h * 0.20);
       bannerCanvas.width = w;
       bannerCanvas.height = bH;
       bctx.drawImage(img, 0, bY, w, bH, 0, 0, w, bH);
 
-      // 2. 하단 카드 블록 (키값 전용: 상단 배너 직후 잘린 파편 및 하단 완료 버튼 직전 잘린 파편 제거)
+      // 2. 하단 카드 블록 크롭 (배너 바로 아래 + 여백부터 시작)
+      // 안드로이드(18% 부근)와 iOS(25% 부근) 모두 첫 번째 키값이 잘리지 않도록 동적 위치 지정
       const listCanvas = document.createElement('canvas');
       const lctx = listCanvas.getContext('2d');
-      const lY = Math.floor(h * 0.27); // 위쪽 파편 마진 확보
-      const lH = Math.floor(h * 0.58); // 아래쪽 파편 마진 확보
+      const lY = bannerEndY !== -1 ? (bannerEndY + Math.floor(h * 0.015)) : Math.floor(h * 0.19);
+      const lH = Math.floor(h * 0.64);
       listCanvas.width = w;
       listCanvas.height = lH;
       lctx.drawImage(img, 0, lY, w, lH, 0, 0, w, lH);
@@ -245,13 +275,11 @@
       let title = '';
       let targetSuccessCount = null;
 
-      // 성공 수량 파싱: '성공 20' 등
       const countMatch = bannerText.match(/성공\s*[:：]?\s*(\d+)/i);
       if (countMatch && countMatch[1]) {
         targetSuccessCount = parseInt(countMatch[1], 10);
       }
 
-      // 타이틀 파싱
       const match = bannerText.match(/(?:바꿀\s*앨범|바꿀)\s*[:：]?\s*([^\n\r]+)/i);
       if (match && match[1]) {
         let t = match[1].trim();
@@ -275,20 +303,14 @@
       };
     }
 
-    // [핵심] 순수 키값만 엄격 판별 (파편 및 잡음 완벽 배제)
+    // 유효한 순수 키값 판별 (10자리/12자리 Hex 기반)
     function isValidPureKey(str) {
       if (!str) return false;
-      // 1. 순수 16진수 문자셋(0-9, A-F) 유효성 (실제 발급 키코드 기준)
-      // TAANDVIYUJUT 등 T, N, V, U, J, Y 같은 비-16진수 문자가 섞인 잡음 원천 차단
       if (!/^[0-9A-F]{10}$|^[0-9A-F]{12}$/.test(str)) {
-        // 일부 G 등이 포함된 확장 규격이더라도 날짜나 메타문구는 배제
         if (!/^[0-9A-Z]{10}$|^[0-9A-Z]{12}$/.test(str)) return false;
-        // 비-Hex 알파벳이 3개 이상 과다 포함된 경우 파편 텍스트로 간주하여 탈락
         const nonHexCount = (str.match(/[^0-9A-F]/g) || []).length;
         if (nonHexCount >= 3) return false;
       }
-
-      // 2. 메타 및 날짜 배제
       if (str.startsWith('HI') || str.startsWith('M') || /^\d{8,14}$/.test(str)) return false;
       return true;
     }
@@ -302,15 +324,13 @@
         let str = line.toUpperCase().trim();
         if (!str) continue;
 
-        // 메타 라인 스킵
         if (str.includes('M_QQQ') || str.includes('M_PROD') || str.includes('CURRENT') || str.includes('KIT')) {
           continue;
         }
 
-        // 공백 및 특수문자 제거 후 순수 영숫자만 압축
         str = str.replace(/[^A-Z0-9]/g, '');
 
-        // 1. 12자리 키코드 우선 검사
+        // 1. 12자리 키코드 (iOS 규격)
         if (str.length >= 12) {
           const c12 = str.substring(0, 12);
           if (isValidPureKey(c12)) {
@@ -321,7 +341,7 @@
           }
         }
 
-        // 2. 10자리 키코드 검사
+        // 2. 10자리 키코드 (안드로이드 규격)
         if (str.length >= 10 && str.length <= 11) {
           const c10 = str.substring(0, 10);
           if (isValidPureKey(c10)) {
@@ -342,10 +362,7 @@
 
       progressArea.classList.remove('hidden');
 
-      // 1. 타이틀 전용 워커 (한글 + 영어)
       const titleWorker = await Tesseract.createWorker(['kor', 'eng']);
-      
-      // 2. 키값 전용 워커 (순수 영숫자 화이트리스트)
       const keyWorker = await Tesseract.createWorker('eng');
       await keyWorker.setParameters({
         tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
@@ -367,10 +384,10 @@
           const previewUrl = URL.createObjectURL(file);
           const img = await loadImage(file);
 
-          // 블록 물리적 분할
+          // 동적 배너 픽셀 추적 기반 블록 분할
           const { bannerUrl, listUrl } = cropCalloutSections(img);
 
-          // 상단 배너 메타데이터(타이틀, 성공 수량) 추출
+          // 상단 배너 메타데이터 추출
           const bannerRet = await titleWorker.recognize(bannerUrl);
           const meta = parseBannerMetadata(bannerRet.data.text);
 
@@ -378,7 +395,7 @@
           const listRet = await keyWorker.recognize(listUrl);
           const rawGroupKeys = parsePureAlphanumericKeys(listRet.data.text);
 
-          // [핵심] 여러 장의 사진 간 중복 키값 자동 소거 (앞선 사진에 이미 들어간 키값은 자동 제외)
+          // 중복 키값 자동 소거
           const uniqueKeysForThisGroup = [];
           rawGroupKeys.forEach(k => {
             if (!globalKeyCodes.has(k)) {
@@ -387,7 +404,6 @@
             }
           });
 
-          // 중복 소거 후 유효 키값이 1개 이상 남아있는 경우에만 카드 생성
           if (uniqueKeysForThisGroup.length > 0) {
             uploadedFileHashes.add(fileHash);
             photoGroups.push({
