@@ -32,15 +32,15 @@
       <div>
         <div class="flex items-center gap-2">
           <h1 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">샘플 벌크 키값 추출</h1>
-          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">고해상도 타이틀 복원</span>
+          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">식별코드 제외 타이틀</span>
         </div>
-        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">배너 2배 업스케일링으로 타이틀 정확도 복구 & 키값 100% 무손실 추출</p>
+        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">괄호 식별코드 자동 제거 (아티스트 / 앨범명만 추출) & 키값 100% 무손실 추출</p>
       </div>
     </div>
     <div class="hidden sm:flex items-center gap-2">
       <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-        동적 배너 추적 활성
+        동적 타이틀 타겟팅 활성
       </span>
     </div>
   </header>
@@ -288,13 +288,12 @@
         }
       }
 
-      // 1. 상단 배너 블록 크롭 (가로 2배 업스케일로 깨짐 방지)
+      // 1. 상단 배너 블록 크롭 (2배 업스케일링 적용)
       const bannerCanvas = document.createElement('canvas');
       const bctx = bannerCanvas.getContext('2d');
       const bY = bannerStartY !== -1 ? Math.max(0, bannerStartY - 5) : Math.floor(h * 0.05);
       const bH = bannerEndY !== -1 ? (bannerEndY - bY + 10) : Math.floor(h * 0.20);
       
-      // 2배 해상도 확대 렌더링 (이진화 없이 자연스러운 안티앨리어싱 유지)
       bannerCanvas.width = w * 2;
       bannerCanvas.height = bH * 2;
       bctx.imageSmoothingEnabled = true;
@@ -316,7 +315,30 @@
       };
     }
 
-    // 상단 배너에서 타이틀 및 성공 수량 정밀 파싱
+    // [핵심] 식별코드를 생략하고 '아티스트 / 앨범명'만 정밀 추출하는 함수
+    function cleanTitleOnly(rawStr) {
+      if (!rawStr) return '';
+      let t = rawStr.trim();
+
+      // 1. 앞쪽 라벨 제거 (바꿀 앨범:, 바꿀 :, == 등)
+      t = t.replace(/^[^\s:]*(?:바꿀\s*앨범|바꿀|바굴|벼결)[:：]?\s*/i, '');
+      t = t.replace(/^[=:\-_\s]+/, '');
+
+      // 2. 뒤쪽 식별코드 괄호 통째로 생략/제거
+      // 예: (M_KiTalbum), (M_PROD_002659_003_P), (HI_00000043...), (식별코드...)
+      t = t.replace(/\s*[\(\[\{][^\)\]\}]*[\)\]\}]\s*$/, '');
+      // 닫는 괄호가 OCR에서 잘린 경우: (M_ 또는 (HI_ 로 시작하면 그 뒤를 모두 삭제
+      const openParenIdx = t.search(/[\(\[\{]\s*[MmHh]/);
+      if (openParenIdx !== -1) {
+        t = t.substring(0, openParenIdx);
+      }
+
+      // 3. 앞뒤 불필요한 특수문자 정리
+      t = t.replace(/^[:\/\\\-_]+|[:\/\\\-_]+$/g, '').trim();
+      return t;
+    }
+
+    // 상단 배너에서 식별코드 제외 타이틀 및 성공 수량 파싱
     function parseBannerMetadata(bannerText) {
       let title = '';
       let targetSuccessCount = null;
@@ -329,43 +351,37 @@
 
       const lines = bannerText.split(/[\r\n]+/).map(l => l.trim()).filter(Boolean);
 
-      // 2. 타이틀 파싱 전략
-      // 전략 A: '바꿀 앨범' 키워드가 들어간 행 탐색
+      // 2. 2번째 행(타이틀 줄) 타겟팅 추출
+      // 전략 A: '바꿀 앨범'이 포함된 줄에서 식별코드 제외 후 추출
       for (let line of lines) {
         if (/바꿀\s*앨범|바꿀/i.test(line)) {
-          let t = line.replace(/^[^\s:]*바꿀\s*앨범[:：]?\s*/i, '').trim();
-          t = t.replace(/^[^\s:]*바꿀[:：]?\s*/i, '').trim();
-          const mIdx = t.search(/[\(\[\{]\s*[MmHh]/);
-          if (mIdx !== -1) t = t.substring(0, mIdx).trim();
-          t = t.replace(/[:\/\\\-_]+$/, '').trim();
-          if (t) {
-            title = t;
+          const cleaned = cleanTitleOnly(line);
+          if (cleaned.length >= 2) {
+            title = cleaned;
             break;
           }
         }
       }
 
-      // 전략 B: 슬래시(/)가 포함된 행 탐색 (다국어 아티스트 / 앨범명 구조)
+      // 전략 B: 슬래시(/)가 포함된 줄 (아티스트 / 앨범명 형태)
       if (!title) {
         const slashLine = lines.find(l => l.includes('/') && !l.includes('http') && !l.includes('성공') && !l.includes('실패'));
         if (slashLine) {
-          let t = slashLine.replace(/^[^:]*[:：]\s*/, '').trim();
-          t = t.replace(/^[=\-_\s]+/, '').trim();
-          const mIdx = t.search(/[\(\[\{]\s*[MmHh]/);
-          if (mIdx !== -1) t = t.substring(0, mIdx).trim();
-          title = t.replace(/[:\/\\\-_]+$/, '').trim();
+          const cleaned = cleanTitleOnly(slashLine);
+          if (cleaned.length >= 2) {
+            title = cleaned;
+          }
         }
       }
 
-      // 전략 C: '모두 성공' 및 카운트 라인을 제외한 첫 번째 유의미한 텍스트 행 취득
+      // 전략 C: '모두 성공' 및 카운트 줄을 제외한 라인 중 유의미한 줄
       if (!title) {
         for (let line of lines) {
-          if (!/모두\s*성공|성공\s*\d|실패\s*\d|대기\s*\d/i.test(line)) {
-            let t = line.replace(/^[=\-_\s]+/, '').trim();
-            const mIdx = t.search(/[\(\[\{]\s*[MmHh]/);
-            if (mIdx !== -1) t = t.substring(0, mIdx).trim();
-            if (t.length >= 2) {
-              title = t;
+          // '모두 성공', '서교', '성공 N' 등 상태 관련 단어 배제
+          if (!/모두|성공|서교|서고|성교|실패|대기/i.test(line)) {
+            const cleaned = cleanTitleOnly(line);
+            if (cleaned.length >= 2) {
+              title = cleaned;
               break;
             }
           }
@@ -437,7 +453,7 @@
 
       progressArea.classList.remove('hidden');
 
-      // 1. 타이틀 전용 워커: 안정적인 다국어 핵심 모델 구성 (문자 충돌 방지)
+      // 1. 타이틀 전용 워커 (핵심 언어 모델)
       const titleWorker = await Tesseract.createWorker(['kor', 'eng', 'jpn', 'chi_sim']);
       
       // 2. 키값 전용 워커: 순수 영숫자 화이트리스트 고정 (키값 보존)
@@ -464,7 +480,7 @@
 
           const { bannerUrl, listUrl } = cropCalloutSections(img);
 
-          // 타이틀 추출 (업스케일링 적용)
+          // 타이틀 추출 (식별코드 생략 적용)
           const bannerRet = await titleWorker.recognize(bannerUrl);
           const meta = parseBannerMetadata(bannerRet.data.text);
 
