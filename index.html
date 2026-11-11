@@ -32,15 +32,15 @@
       <div>
         <div class="flex items-center gap-2">
           <h1 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">샘플 벌크 키값 추출</h1>
-          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">기호 정예화 모드</span>
+          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">슬래시(/) 검증 모드</span>
         </div>
-        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">필수 특수기호(- _ / . , ! ?) 한정 필터 & 키값 100% 무손실 추출</p>
+        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">아티스트 / 앨범명 구조 정밀 검증 & 키값 100% 무손실 추출</p>
       </div>
     </div>
     <div class="hidden sm:flex items-center gap-2">
       <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-        기호 최적화 필터 가동
+        슬래시 기반 정규식 필터 활성
       </span>
     </div>
   </header>
@@ -257,7 +257,7 @@
       });
     }
 
-    // 상단 배너 위치 감지 및 32%~68% 정밀 단일행 크롭
+    // [핵심] 1열 '모두 성공' 침범을 완전히 차단하는 정밀 타겟 크롭 (배너 38% ~ 68%)
     function cropCalloutSections(img) {
       const w = img.width;
       const h = img.height;
@@ -292,20 +292,20 @@
       const safeBannerEndY = bannerEndY !== -1 ? bannerEndY : Math.floor(h * 0.22);
       const bannerHeight = safeBannerEndY - safeBannerStartY;
 
-      // 1. 배너 전체 크롭
+      // 1. 배너 전체 크롭 (성공 수량 확인용)
       const bannerCanvas = document.createElement('canvas');
       const bctx = bannerCanvas.getContext('2d');
       bannerCanvas.width = w;
       bannerCanvas.height = bannerHeight;
       bctx.drawImage(img, 0, safeBannerStartY, w, bannerHeight, 0, 0, w, bannerHeight);
 
-      // 2. 타이틀 전용 2번째 줄 크롭 (32% ~ 68% 구간 타겟팅)
+      // 2. 타이틀 전용 2번째 줄 크롭: 1열 '모두 성공'과 3열 '성공 카운트'를 완전히 배제하는 38% ~ 68% 구간
       const titleCanvas = document.createElement('canvas');
       const tctx = titleCanvas.getContext('2d');
-      const tY = safeBannerStartY + Math.floor(bannerHeight * 0.32);
-      const tH = Math.floor(bannerHeight * 0.36);
-      const tX = Math.floor(w * 0.03);
-      const tW = Math.floor(w * 0.94);
+      const tY = safeBannerStartY + Math.floor(bannerHeight * 0.38);
+      const tH = Math.floor(bannerHeight * 0.30);
+      const tX = 0; // 좌측 글자 잘림 방지를 위해 폭 전체 확보
+      const tW = w;
 
       titleCanvas.width = tW;
       titleCanvas.height = tH;
@@ -327,52 +327,57 @@
       };
     }
 
-    // 정예 기호 한정 필터링 (- _ / . , ! ?) 및 식별코드 생략
+    // [핵심] 식별코드 제거 및 '아티스트 / 앨범명' 추출
     function cleanTitleOnly(rawStr) {
       if (!rawStr) return '';
       let t = rawStr.trim();
 
-      // 앞쪽 라벨 제거
-      t = t.replace(/^[^\s:]*(?:바꿀\s*앨범|바꿀|바굴|벼결)[:：]?\s*/i, '');
-      t = t.replace(/^[=:\-_\s]+/, '');
+      // 앞쪽 시스템 라벨 제거 (바꿀 앨범:, 바꿀 :, 변경 결과 등)
+      t = t.replace(/^[^\s:]*(?:바꿀\s*앨범|바꿀|바굴|벼결|결과)[:：]?\s*/i, '');
+      t = t.replace(/^[=:\-_\s|]+/, '');
 
-      // 뒤쪽 식별코드 괄호 통째로 제거
+      // 뒤쪽 식별코드 괄호 통째로 제거 (예: (M_KiTalbum), (M_PROD...))
       t = t.replace(/\s*[\(\[\{][^\)\]\}]*[\)\]\}]\s*$/, '');
       const openParenIdx = t.search(/[\(\[\{]\s*[MmHh]/);
       if (openParenIdx !== -1) {
         t = t.substring(0, openParenIdx);
       }
 
-      // 허용된 기호(- _ / . , ! ?)와 한/영/숫자/공백을 제외한 이상 기호 제거
+      // 허용 특수기호(- _ / . , ! ?) 외 불필요한 기호 제거
       t = t.replace(/[^0-9a-zA-Z가-힣\s\-_/.,!?]/g, '');
-
-      // 앞뒤 공백 및 잔여 기호 정리
       t = t.replace(/^[\-_/.,!?\s]+|[\-_/.,!?\s]+$/g, '').trim();
+
+      // 슬래시 양옆 공백 표준화 (아티스트 / 앨범명)
+      if (t.includes('/')) {
+        t = t.split('/').map(part => part.trim()).join(' / ');
+      }
       return t;
     }
 
+    // [핵심] 슬래시(/)가 반드시 포함된 줄만 타이틀로 인정 (CH MR, 서교 원천 차단)
     function extractTitleFromText(rawText) {
       if (!rawText) return '';
       const lines = rawText.split(/[\r\n]+/).map(l => l.trim()).filter(Boolean);
 
       for (let line of lines) {
-        if (line.includes('/') && !line.includes('http') && !/성공|실패|대기|서교|모두/i.test(line)) {
+        // 타이틀 줄은 무조건 슬래시(/)를 포함해야 함
+        if (line.includes('/') && !line.includes('http') && !/성공|실패|대기|서교|모두|결과/i.test(line)) {
           const cleaned = cleanTitleOnly(line);
-          if (cleaned.length >= 2) return cleaned;
+          // 아티스트 / 앨범명 구조 검증 (슬래시 앞뒤로 글자가 있어야 함)
+          const parts = cleaned.split('/');
+          if (parts.length >= 2 && parts[0].trim().length >= 1 && parts[1].trim().length >= 1) {
+            return cleaned;
+          }
         }
       }
 
+      // 슬래시가 누락되었거나 분리된 라인 중 바꿀 앨범 키워드가 명시된 경우
       for (let line of lines) {
         if (/바꿀\s*앨범|바꿀/i.test(line)) {
           const cleaned = cleanTitleOnly(line);
-          if (cleaned.length >= 2) return cleaned;
-        }
-      }
-
-      for (let line of lines) {
-        if (!/모두|성공|서교|서고|성교|실패|대기/i.test(line)) {
-          const cleaned = cleanTitleOnly(line);
-          if (cleaned.length >= 2) return cleaned;
+          if (cleaned.length >= 3 && !/모두|성공|서교/i.test(cleaned)) {
+            return cleaned;
+          }
         }
       }
 
@@ -436,8 +441,6 @@
 
       // 1. 타이틀 전용 워커 (kor + eng)
       const titleWorker = await Tesseract.createWorker(['kor', 'eng']);
-      
-      // 기호 축소: 영문, 숫자, 한글, 허용 기호(- _ / . , ! ? () :)
       await titleWorker.setParameters({
         tessedit_char_whitelist: '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ가-힣-_/.,!?(): '
       });
@@ -476,15 +479,17 @@
           const countMatch = bannerRet.data.text.match(/성공\s*[:：]?\s*(\d+)/i);
           const targetSuccessCount = countMatch && countMatch[1] ? parseInt(countMatch[1], 10) : null;
 
-          // 타이틀 단일행 파싱
+          // 타이틀 2열 정밀 분석
           const titleRet = await titleWorker.recognize(titleUrl);
           let extractedTitle = extractTitleFromText(titleRet.data.text);
 
+          // 타겟 영역에서 놓쳤을 때만 전체 배너 텍스트에서 보조 탐색
           if (!extractedTitle) {
             extractedTitle = extractTitleFromText(bannerRet.data.text);
           }
 
-          if (extractedTitle && extractedTitle.length >= 2) {
+          // 자동 상속 처리 (슬래시가 포함된 정상 타이틀만 상속)
+          if (extractedTitle && extractedTitle.includes('/') && extractedTitle.length >= 3) {
             sharedDiscoveredTitle = extractedTitle;
           } else if (sharedDiscoveredTitle) {
             extractedTitle = sharedDiscoveredTitle;
@@ -529,9 +534,10 @@
         progressPercent.innerText = `${pct}%`;
       }
 
+      // 배치 완료 후 발견된 유효 타이틀 전체 자동 상속
       if (sharedDiscoveredTitle) {
         photoGroups.forEach(g => {
-          if (!g.title || g.title === '타이틀을 입력하세요') {
+          if (!g.title || g.title === '타이틀을 입력하세요' || !g.title.includes('/')) {
             g.title = sharedDiscoveredTitle;
           }
         });
