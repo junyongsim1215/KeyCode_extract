@@ -32,15 +32,15 @@
       <div>
         <div class="flex items-center gap-2">
           <h1 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">샘플 벌크 키값 추출</h1>
-          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">단일행 정밀 복원</span>
+          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">기호 정예화 모드</span>
         </div>
-        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">1:1 원본 해상도 보존 및 단일 라인(PSM 7) 모드로 타이틀 정확도 복구</p>
+        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">필수 특수기호(- _ / . , ! ?) 한정 필터 & 키값 100% 무손실 추출</p>
       </div>
     </div>
     <div class="hidden sm:flex items-center gap-2">
       <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-        동적 타이틀 타겟팅 활성
+        기호 최적화 필터 가동
       </span>
     </div>
   </header>
@@ -130,7 +130,7 @@
             </h2>
             <span id="totalKeyCountBadge" class="text-xs bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">총 0건</span>
           </div>
-          <p class="text-[11px] text-slate-400 mt-1">각 카드의 썸네일 또는 [타이틀 진단] 버튼을 눌러 상태를 확인할 수 있습니다.</p>
+          <p class="text-[11px] text-slate-400 mt-1">각 카드의 썸네일을 누르면 원본 사진을 크게 확대하여 확인할 수 있습니다.</p>
         </div>
 
         <div class="flex items-center gap-2">
@@ -257,7 +257,7 @@
       });
     }
 
-    // [핵심] 원본 1:1 해상도로 정확히 2번째 타이틀 줄만 흑백 이진화하여 전달
+    // 상단 배너 위치 감지 및 32%~68% 정밀 단일행 크롭
     function cropCalloutSections(img) {
       const w = img.width;
       const h = img.height;
@@ -292,38 +292,24 @@
       const safeBannerEndY = bannerEndY !== -1 ? bannerEndY : Math.floor(h * 0.22);
       const bannerHeight = safeBannerEndY - safeBannerStartY;
 
-      // 1. 배너 전체 크롭 (성공 수량 확인용)
+      // 1. 배너 전체 크롭
       const bannerCanvas = document.createElement('canvas');
       const bctx = bannerCanvas.getContext('2d');
       bannerCanvas.width = w;
       bannerCanvas.height = bannerHeight;
       bctx.drawImage(img, 0, safeBannerStartY, w, bannerHeight, 0, 0, w, bannerHeight);
 
-      // 2. 타이틀 전용 2번째 줄 크롭 (업스케일링 블러 완전 제거, 원본 1:1 해상도 유지)
+      // 2. 타이틀 전용 2번째 줄 크롭 (32% ~ 68% 구간 타겟팅)
       const titleCanvas = document.createElement('canvas');
       const tctx = titleCanvas.getContext('2d');
-      const tY = safeBannerStartY + Math.floor(bannerHeight * 0.25);
-      const tH = Math.floor(bannerHeight * 0.50);
+      const tY = safeBannerStartY + Math.floor(bannerHeight * 0.32);
+      const tH = Math.floor(bannerHeight * 0.36);
       const tX = Math.floor(w * 0.03);
       const tW = Math.floor(w * 0.94);
 
       titleCanvas.width = tW;
       titleCanvas.height = tH;
-      // 인위적 스케일링 없이 1:1 선명한 원본 픽셀 그대로 복사
       tctx.drawImage(img, tX, tY, tW, tH, 0, 0, tW, tH);
-
-      // 배너의 연두색/연보라색 배경을 날리고 글자 획만 새까맣게 만드는 로컬 대비 이진화
-      const titleImgData = tctx.getImageData(0, 0, tW, tH);
-      const td = titleImgData.data;
-      for (let i = 0; i < td.length; i += 4) {
-        const gray = 0.299 * td[i] + 0.587 * td[i + 1] + 0.114 * td[i + 2];
-        // 텍스트는 대체로 어둡고 배경은 밝으므로 임계값 160 기준 뚜렷한 흑백 변환
-        const val = gray < 165 ? 0 : 255;
-        td[i] = val;
-        td[i + 1] = val;
-        td[i + 2] = val;
-      }
-      tctx.putImageData(titleImgData, 0, 0);
 
       // 3. 하단 카드 블록 크롭 (키값 전용 - 기존 규격 100% 보존)
       const listCanvas = document.createElement('canvas');
@@ -341,7 +327,7 @@
       };
     }
 
-    // 순수 '아티스트 / 앨범명' 추출 (식별코드 제외)
+    // 정예 기호 한정 필터링 (- _ / . , ! ?) 및 식별코드 생략
     function cleanTitleOnly(rawStr) {
       if (!rawStr) return '';
       let t = rawStr.trim();
@@ -357,24 +343,25 @@
         t = t.substring(0, openParenIdx);
       }
 
-      t = t.replace(/^[:\/\\\-_]+|[:\/\\\-_]+$/g, '').trim();
+      // 허용된 기호(- _ / . , ! ?)와 한/영/숫자/공백을 제외한 이상 기호 제거
+      t = t.replace(/[^0-9a-zA-Z가-힣\s\-_/.,!?]/g, '');
+
+      // 앞뒤 공백 및 잔여 기호 정리
+      t = t.replace(/^[\-_/.,!?\s]+|[\-_/.,!?\s]+$/g, '').trim();
       return t;
     }
 
-    // 타이틀 정밀 파싱
     function extractTitleFromText(rawText) {
       if (!rawText) return '';
       const lines = rawText.split(/[\r\n]+/).map(l => l.trim()).filter(Boolean);
 
-      // 1. 슬래시(/)가 포함된 행 우선
       for (let line of lines) {
-        if (line.includes('/') && !line.includes('http') && !/성공|실패|대기|서교|서고|모두/i.test(line)) {
+        if (line.includes('/') && !line.includes('http') && !/성공|실패|대기|서교|모두/i.test(line)) {
           const cleaned = cleanTitleOnly(line);
           if (cleaned.length >= 2) return cleaned;
         }
       }
 
-      // 2. '바꿀 앨범'이 포함된 행
       for (let line of lines) {
         if (/바꿀\s*앨범|바꿀/i.test(line)) {
           const cleaned = cleanTitleOnly(line);
@@ -382,7 +369,6 @@
         }
       }
 
-      // 3. 상태 관련 단어를 제외한 가장 긴 행
       for (let line of lines) {
         if (!/모두|성공|서교|서고|성교|실패|대기/i.test(line)) {
           const cleaned = cleanTitleOnly(line);
@@ -393,7 +379,6 @@
       return '';
     }
 
-    // 유효한 순수 키값 판별 (10자리/12자리 Hex 기반) - 기존 완전 보존
     function isValidPureKey(str) {
       if (!str) return false;
       if (!/^[0-9A-F]{10}$|^[0-9A-F]{12}$/.test(str)) {
@@ -405,7 +390,6 @@
       return true;
     }
 
-    // 하단 카드 블록에서 순수 영숫자 키코드 파싱 - 기존 완전 보존
     function parsePureAlphanumericKeys(ocrText) {
       const detected = [];
       const lines = ocrText.split(/[\r\n]+/);
@@ -450,13 +434,15 @@
 
       progressArea.classList.remove('hidden');
 
-      // 타이틀 워커: 단일 텍스트 줄(PSM 7) 모드 지정으로 잡음 차단
+      // 1. 타이틀 전용 워커 (kor + eng)
       const titleWorker = await Tesseract.createWorker(['kor', 'eng']);
+      
+      // 기호 축소: 영문, 숫자, 한글, 허용 기호(- _ / . , ! ? () :)
       await titleWorker.setParameters({
-        tessedit_pageseg_mode: Tesseract.PSM.SINGLE_LINE
+        tessedit_char_whitelist: '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ가-힣-_/.,!?(): '
       });
 
-      // 키값 워커: 순수 영숫자 화이트리스트 고정 (키값 보존)
+      // 2. 키값 전용 워커 (순수 영숫자)
       const keyWorker = await Tesseract.createWorker('eng');
       await keyWorker.setParameters({
         tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
@@ -485,28 +471,26 @@
 
           const { bannerUrl, titleUrl, listUrl } = cropCalloutSections(img);
 
-          // 1. 배너 전체 성공 수량 추출
+          // 성공 수량 파싱
           const bannerRet = await titleWorker.recognize(bannerUrl);
           const countMatch = bannerRet.data.text.match(/성공\s*[:：]?\s*(\d+)/i);
           const targetSuccessCount = countMatch && countMatch[1] ? parseInt(countMatch[1], 10) : null;
 
-          // 2. 단일행(PSM 7) 타겟 크롭 영역 분석
+          // 타이틀 단일행 파싱
           const titleRet = await titleWorker.recognize(titleUrl);
-          const rawTitleOcr = titleRet.data.text.trim();
-          let extractedTitle = extractTitleFromText(rawTitleOcr);
+          let extractedTitle = extractTitleFromText(titleRet.data.text);
 
           if (!extractedTitle) {
             extractedTitle = extractTitleFromText(bannerRet.data.text);
           }
 
-          // 자동 상속 처리
           if (extractedTitle && extractedTitle.length >= 2) {
             sharedDiscoveredTitle = extractedTitle;
           } else if (sharedDiscoveredTitle) {
             extractedTitle = sharedDiscoveredTitle;
           }
 
-          // 3. 하단 키값 전수 추출
+          // 하단 키값 전수 추출
           const listRet = await keyWorker.recognize(listUrl);
           const rawGroupKeys = parsePureAlphanumericKeys(listRet.data.text);
 
@@ -529,8 +513,6 @@
               targetSuccessCount: targetSuccessCount,
               keyCodes: uniqueKeysForThisGroup,
               previewUrl: previewUrl,
-              titleCropUrl: titleUrl,
-              rawTitleOcr: rawTitleOcr,
               fileName: file.name
             });
           } else {
@@ -571,11 +553,6 @@
       }
     }
 
-    window.toggleTitleDebug = function(gIdx) {
-      const el = document.getElementById(`titleDebug_${gIdx}`);
-      if (el) el.classList.toggle('hidden');
-    };
-
     function renderPhotoGroups() {
       if (photoGroups.length === 0) {
         emptyState.style.display = '';
@@ -601,7 +578,7 @@
         card.className = 'photo-group-card bg-slate-50 border border-slate-200 rounded-xl p-4 shadow-sm space-y-3';
         
         card.innerHTML = `
-          <!-- 그룹 상단: 썸네일 + 타이틀 + 진단버튼 + 국가선택 + 삭제 -->
+          <!-- 그룹 상단: 썸네일 + 타이틀 + 국가선택 + 삭제 -->
           <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-white p-3.5 rounded-lg border border-slate-200">
             <div class="flex items-center gap-3 flex-1 min-w-0">
               <div class="relative group cursor-pointer shrink-0" onclick="openImageModal('${group.previewUrl}', '${group.title.replace(/'/g, "\\'")}', '${group.fileName}')" title="클릭하여 원본 사진 확대">
@@ -612,16 +589,11 @@
               </div>
 
               <div class="flex-1 min-w-0 space-y-1.5">
-                <div class="flex items-center justify-between gap-2 flex-wrap">
-                  <div class="flex items-center gap-2">
-                    <span class="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 shrink-0">
-                      사진 #${gIdx + 1} (${countBadgeText})
-                    </span>
-                    <span class="text-[11px] text-slate-400 truncate">${group.fileName}</span>
-                  </div>
-                  <button type="button" onclick="toggleTitleDebug(${gIdx})" class="text-[11px] font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded border border-blue-200 transition">
-                    🔍 타이틀 진단 보기
-                  </button>
+                <div class="flex items-center gap-2">
+                  <span class="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 shrink-0">
+                    사진 #${gIdx + 1} (${countBadgeText})
+                  </span>
+                  <span class="text-[11px] text-slate-400 truncate">${group.fileName}</span>
                 </div>
                 <input type="text" value="${group.title}" oninput="updateGroupTitle(${gIdx}, this.value)" 
                   class="w-full text-sm font-bold text-slate-800 bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 focus:border-emerald-500 rounded px-2.5 py-1.5 focus:outline-none transition" 
@@ -645,21 +617,6 @@
               <button onclick="removeGroup(${gIdx})" class="text-xs text-red-500 hover:text-red-700 font-semibold px-2 py-1 rounded hover:bg-red-50 transition ml-2">
                 삭제
               </button>
-            </div>
-          </div>
-
-          <!-- 타이틀 정밀 진단 영역 -->
-          <div id="titleDebug_${gIdx}" class="hidden bg-slate-900 text-slate-200 p-3 rounded-lg text-xs space-y-2 border border-slate-700">
-            <div class="flex items-center justify-between font-bold text-slate-400">
-              <span>[타이틀 크롭 1:1 이미지 및 OCR 결과]</span>
-              <span class="text-[10px] text-emerald-400">1:1 원본 흑백 이진화</span>
-            </div>
-            <div class="bg-black/50 p-1.5 rounded flex items-center justify-center overflow-x-auto">
-              <img src="${group.titleCropUrl}" class="max-h-16 w-auto object-contain border border-slate-700" alt="타이틀 크롭본">
-            </div>
-            <div class="font-mono bg-black/30 p-2 rounded text-[11px] break-all">
-              <span class="text-slate-400">OCR 인식 원문: </span>
-              <span class="text-yellow-300">${group.rawTitleOcr ? group.rawTitleOcr.replace(/\n/g, ' ↵ ') : '(텍스트 없음)'}</span>
             </div>
           </div>
 
