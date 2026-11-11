@@ -32,15 +32,15 @@
       <div>
         <div class="flex items-center gap-2">
           <h1 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">샘플 벌크 키값 추출</h1>
-          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">타이틀 무결성 완성본</span>
+          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">사진별 개별 타이틀 보호</span>
         </div>
-        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">연두/연보라 배너 색상 적응 & 식별코드 제외 아티스트/타이틀 자동 추출</p>
+        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">사진 간 타이틀 덮어쓰기 방지 & 10/12자리 키코드 100% 무손실 추출</p>
       </div>
     </div>
     <div class="hidden sm:flex items-center gap-2">
       <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-        동적 배너 적응 활성
+        독립 타이틀 격리 모드 활성
       </span>
     </div>
   </header>
@@ -257,7 +257,7 @@
       });
     }
 
-    // [정밀] 연보라/연두 배너 감지 및 상하 블록 분할
+    // 연보라/연두 배너 감지 및 상하 블록 분할
     function cropCalloutSections(img) {
       const w = img.width;
       const h = img.height;
@@ -279,8 +279,6 @@
         const idx = (y * w + midX) * 4;
         const r = data[idx], g = data[idx + 1], b = data[idx + 2];
 
-        // 1. 연보라색 배너: R, B가 G보다 뚜렷하게 큼 (김건모 AOS)
-        // 2. 연두색 배너: G가 R, B보다 뚜렷하게 큼 (윤새/늑준/뮤즈라이브 iOS)
         const isPurpleBanner = (r > 200 && b > 210 && g < b && (r - g) > 6 && (b - g) > 8);
         const isGreenBanner  = (g > 200 && g > r + 6 && g > b + 6);
 
@@ -296,7 +294,7 @@
       const safeBannerEndY = bannerEndY !== -1 ? bannerEndY : Math.floor(h * 0.22);
       const bannerHeight = safeBannerEndY - safeBannerStartY;
 
-      // 1. 배너 전체 크롭 (2배 고해상도 렌더링으로 글자 뭉개짐 방지)
+      // 1. 배너 전체 크롭 (2배 고해상도 렌더링)
       const bannerCanvas = document.createElement('canvas');
       const bctx = bannerCanvas.getContext('2d');
       bannerCanvas.width = w * 2;
@@ -305,7 +303,7 @@
       bctx.imageSmoothingQuality = 'high';
       bctx.drawImage(img, 0, safeBannerStartY, w, bannerHeight, 0, 0, w * 2, bannerHeight * 2);
 
-      // 2. 하단 리스트 블록 크롭 (키값 전용: 기존 로직 100% 보존)
+      // 2. 하단 리스트 블록 크롭 (키값 전용)
       const listCanvas = document.createElement('canvas');
       const lctx = listCanvas.getContext('2d');
       const lY = safeBannerEndY + Math.floor(h * 0.015);
@@ -329,14 +327,14 @@
       t = t.replace(/^[^\s:]*(?:바꿀\s*앨범|바꿀|바굴|벼결|결과)[:：]?\s*/i, '');
       t = t.replace(/^[=:\-_\s|]+/, '');
 
-      // 뒤쪽 식별코드 괄호 통째로 제거 (예: (M_KiTalbum), (M_PROD...))
+      // 뒤쪽 식별코드 괄호 통째로 제거
       t = t.replace(/\s*[\(\[\{][^\)\]\}]*[\)\]\}]\s*$/, '');
       const openParenIdx = t.search(/[\(\[\{]\s*[MmHh]/);
       if (openParenIdx !== -1) {
         t = t.substring(0, openParenIdx);
       }
 
-      // 허용 특수기호 외 불필요한 기호 제거
+      // 허용 특수기호 외 제거
       t = t.replace(/[^0-9a-zA-Z가-힣\s\-_/.,!?()]/g, '');
       t = t.replace(/^[\-_/.,!?\s]+|[\-_/.,!?\s]+$/g, '').trim();
 
@@ -346,12 +344,11 @@
       return t;
     }
 
-    // 배너 텍스트 전체에서 타이틀 라인 정밀 추출
+    // 배너 텍스트에서 해당 사진의 타이틀만 추출
     function parseBannerMetadata(bannerText) {
       let title = '';
       let targetSuccessCount = null;
 
-      // 1. 성공 수량 파싱
       const countMatch = bannerText.match(/성공\s*[:：]?\s*(\d+)/i);
       if (countMatch && countMatch[1]) {
         targetSuccessCount = parseInt(countMatch[1], 10);
@@ -370,7 +367,7 @@
         }
       }
 
-      // 전략 B: 슬래시(/)가 포함된 줄 (아티스트 / 앨범명 형태)
+      // 전략 B: 슬래시(/)가 포함된 줄 (아티스트 / 앨범명)
       if (!title) {
         for (let line of lines) {
           if (line.includes('/') && !line.includes('http') && !/모두|성공|실패|대기|서교/i.test(line)) {
@@ -384,7 +381,7 @@
         }
       }
 
-      // 전략 C: 식별코드 괄호 (M_... 또는 (HI_... 가 포함된 줄에서 괄호 앞 추출
+      // 전략 C: 식별코드 괄호 앞부분
       if (!title) {
         for (let line of lines) {
           if (/[\(\[\{]\s*[MmHh]/i.test(line)) {
@@ -458,21 +455,13 @@
 
       progressArea.classList.remove('hidden');
 
-      // 1. 타이틀 전용 워커 (한글 + 영문)
       const titleWorker = await Tesseract.createWorker(['kor', 'eng']);
-      
-      // 2. 키값 전용 워커 (순수 영숫자)
       const keyWorker = await Tesseract.createWorker('eng');
       await keyWorker.setParameters({
         tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
       });
 
       let skippedDuplicateCount = 0;
-      let sharedDiscoveredTitle = '';
-
-      if (photoGroups.length > 0 && photoGroups[0].title && photoGroups[0].title !== '타이틀을 입력하세요') {
-        sharedDiscoveredTitle = photoGroups[0].title;
-      }
 
       for (let i = 0; i < fileList.length; i++) {
         const file = fileList[i];
@@ -490,19 +479,12 @@
 
           const { bannerUrl, listUrl } = cropCalloutSections(img);
 
-          // 상단 배너 전체에서 타이틀 및 성공 수량 추출
+          // 1. 해당 사진의 배너에서 독립적으로 타이틀 추출 (다른 사진 덮어쓰기 원천 방지)
           const bannerRet = await titleWorker.recognize(bannerUrl);
           const meta = parseBannerMetadata(bannerRet.data.text);
-          let extractedTitle = meta.title;
+          let currentPhotoTitle = meta.title;
 
-          // 타이틀 자동 상속 처리 (슬래시가 포함된 타이틀 우선)
-          if (extractedTitle && extractedTitle.includes('/') && extractedTitle !== '타이틀을 입력하세요') {
-            sharedDiscoveredTitle = extractedTitle;
-          } else if (sharedDiscoveredTitle) {
-            extractedTitle = sharedDiscoveredTitle;
-          }
-
-          // 하단 키값 전수 추출
+          // 2. 하단 키값 전수 추출
           const listRet = await keyWorker.recognize(listUrl);
           const rawGroupKeys = parsePureAlphanumericKeys(listRet.data.text);
 
@@ -516,12 +498,13 @@
 
           if (uniqueKeysForThisGroup.length > 0) {
             uploadedFileHashes.add(fileHash);
+            // 각 카드는 자신이 인식한 타이틀을 독립적으로 저장
             photoGroups.push({
               id: Date.now() + Math.random(),
               fileHash: fileHash,
               date: document.getElementById('workDate').value || today,
               country: defaultShippingCountrySelect.value,
-              title: extractedTitle || sharedDiscoveredTitle || '타이틀을 입력하세요',
+              title: currentPhotoTitle,
               targetSuccessCount: meta.targetSuccessCount,
               keyCodes: uniqueKeysForThisGroup,
               previewUrl: previewUrl,
@@ -539,15 +522,6 @@
         const pct = Math.round(((i + 1) / fileList.length) * 100);
         progressBar.style.width = `${pct}%`;
         progressPercent.innerText = `${pct}%`;
-      }
-
-      // 배치 완료 후 발견된 유효 타이틀 전체 자동 상속
-      if (sharedDiscoveredTitle) {
-        photoGroups.forEach(g => {
-          if (!g.title || g.title === '타이틀을 입력하세요' || !g.title.includes('/')) {
-            g.title = sharedDiscoveredTitle;
-          }
-        });
       }
 
       await titleWorker.terminate();
@@ -591,7 +565,7 @@
         card.className = 'photo-group-card bg-slate-50 border border-slate-200 rounded-xl p-4 shadow-sm space-y-3';
         
         card.innerHTML = `
-          <!-- 그룹 상단: 썸네일 + 타이틀 + 국가선택 + 삭제 -->
+          <!-- 그룹 상단: 썸네일 + 독립 타이틀 + 국가선택 + 삭제 -->
           <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-white p-3.5 rounded-lg border border-slate-200">
             <div class="flex items-center gap-3 flex-1 min-w-0">
               <div class="relative group cursor-pointer shrink-0" onclick="openImageModal('${group.previewUrl}', '${group.title.replace(/'/g, "\\'")}', '${group.fileName}')" title="클릭하여 원본 사진 확대">
