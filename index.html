@@ -32,15 +32,15 @@
       <div>
         <div class="flex items-center gap-2">
           <h1 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">샘플 벌크 키값 추출</h1>
-          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">다국어 타이틀 지원</span>
+          <span class="text-[11px] sm:text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full shrink-0">고해상도 타이틀 복원</span>
         </div>
-        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">한/영/일/중/아랍/러시아/스페인어 타이틀 & 순수 키값 100% 무손실 추출</p>
+        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">배너 2배 업스케일링으로 타이틀 정확도 복구 & 키값 100% 무손실 추출</p>
       </div>
     </div>
     <div class="hidden sm:flex items-center gap-2">
       <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-        다국어 타이틀 엔진 활성
+        동적 배너 추적 활성
       </span>
     </div>
   </header>
@@ -257,25 +257,6 @@
       });
     }
 
-    // [전처리] 상단 배너 고대비 이진화 캔버스 생성 (다국어 인식률 극대화)
-    function preprocessBannerCanvas(canvas) {
-      const ctx = canvas.getContext('2d');
-      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const d = imgData.data;
-
-      for (let i = 0; i < d.length; i += 4) {
-        // 그레이스케일 변환
-        const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-        // 유색 배경은 순백색(255)으로 날리고, 텍스트는 선명하게 강조
-        const val = gray > 140 ? 255 : Math.max(0, gray * 0.75);
-        d[i] = val;
-        d[i + 1] = val;
-        d[i + 2] = val;
-      }
-      ctx.putImageData(imgData, 0, 0);
-      return canvas;
-    }
-
     // 상단 배너 끝 지점을 픽셀로 감지하여 안드로이드와 iOS 자동 적응
     function cropCalloutSections(img) {
       const w = img.width;
@@ -307,17 +288,20 @@
         }
       }
 
-      // 1. 상단 배너 블록 크롭 + 고대비 전처리
+      // 1. 상단 배너 블록 크롭 (가로 2배 업스케일로 깨짐 방지)
       const bannerCanvas = document.createElement('canvas');
       const bctx = bannerCanvas.getContext('2d');
       const bY = bannerStartY !== -1 ? Math.max(0, bannerStartY - 5) : Math.floor(h * 0.05);
       const bH = bannerEndY !== -1 ? (bannerEndY - bY + 10) : Math.floor(h * 0.20);
-      bannerCanvas.width = w;
-      bannerCanvas.height = bH;
-      bctx.drawImage(img, 0, bY, w, bH, 0, 0, w, bH);
-      preprocessBannerCanvas(bannerCanvas);
+      
+      // 2배 해상도 확대 렌더링 (이진화 없이 자연스러운 안티앨리어싱 유지)
+      bannerCanvas.width = w * 2;
+      bannerCanvas.height = bH * 2;
+      bctx.imageSmoothingEnabled = true;
+      bctx.imageSmoothingQuality = 'high';
+      bctx.drawImage(img, 0, bY, w, bH, 0, 0, w * 2, bH * 2);
 
-      // 2. 하단 카드 블록 크롭 (배너 바로 아래부터 시작 - 키값 보존 로직)
+      // 2. 하단 카드 블록 크롭 (배너 바로 아래부터 시작 - 키값 보존)
       const listCanvas = document.createElement('canvas');
       const lctx = listCanvas.getContext('2d');
       const lY = bannerEndY !== -1 ? (bannerEndY + Math.floor(h * 0.015)) : Math.floor(h * 0.19);
@@ -332,7 +316,7 @@
       };
     }
 
-    // [다국어 지원] 상단 배너에서 다국어 타이틀 및 성공 수량 정밀 파싱
+    // 상단 배너에서 타이틀 및 성공 수량 정밀 파싱
     function parseBannerMetadata(bannerText) {
       let title = '';
       let targetSuccessCount = null;
@@ -351,7 +335,6 @@
         if (/바꿀\s*앨범|바꿀/i.test(line)) {
           let t = line.replace(/^[^\s:]*바꿀\s*앨범[:：]?\s*/i, '').trim();
           t = t.replace(/^[^\s:]*바꿀[:：]?\s*/i, '').trim();
-          // 뒤쪽 메타코드 (M_... 또는 (HI_... 제거
           const mIdx = t.search(/[\(\[\{]\s*[MmHh]/);
           if (mIdx !== -1) t = t.substring(0, mIdx).trim();
           t = t.replace(/[:\/\\\-_]+$/, '').trim();
@@ -395,7 +378,7 @@
       };
     }
 
-    // 유효한 순수 키값 판별 (10자리/12자리 Hex 기반) - 기존 유지
+    // 유효한 순수 키값 판별 (10자리/12자리 Hex 기반) - 기존 완전 보존
     function isValidPureKey(str) {
       if (!str) return false;
       if (!/^[0-9A-F]{10}$|^[0-9A-F]{12}$/.test(str)) {
@@ -407,7 +390,7 @@
       return true;
     }
 
-    // 하단 카드 블록에서 순수 영숫자 키코드 파싱 - 기존 유지
+    // 하단 카드 블록에서 순수 영숫자 키코드 파싱 - 기존 완전 보존
     function parsePureAlphanumericKeys(ocrText) {
       const detected = [];
       const lines = ocrText.split(/[\r\n]+/);
@@ -454,8 +437,8 @@
 
       progressArea.classList.remove('hidden');
 
-      // 1. 타이틀 전용 워커: 영어/일본어/중국어(간체·번체)/한국어/아랍어/러시아어/스페인어 지원
-      const titleWorker = await Tesseract.createWorker(['kor', 'eng', 'jpn', 'chi_sim', 'chi_tra', 'ara', 'rus', 'spa']);
+      // 1. 타이틀 전용 워커: 안정적인 다국어 핵심 모델 구성 (문자 충돌 방지)
+      const titleWorker = await Tesseract.createWorker(['kor', 'eng', 'jpn', 'chi_sim']);
       
       // 2. 키값 전용 워커: 순수 영숫자 화이트리스트 고정 (키값 보존)
       const keyWorker = await Tesseract.createWorker('eng');
@@ -481,7 +464,7 @@
 
           const { bannerUrl, listUrl } = cropCalloutSections(img);
 
-          // 다국어 타이틀 추출
+          // 타이틀 추출 (업스케일링 적용)
           const bannerRet = await titleWorker.recognize(bannerUrl);
           const meta = parseBannerMetadata(bannerRet.data.text);
 
