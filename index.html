@@ -21,8 +21,16 @@
   <!-- 헤더 -->
   <header class="bg-white border-b border-slate-200 px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-3 sticky top-0 z-30 shadow-sm">
     <div class="flex items-center gap-3">
-      <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-base sm:text-lg shadow-sm shrink-0">
-        K
+      <!-- KiT 공식 로고 적용 영역 -->
+      <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 shadow-sm flex items-center justify-center p-1.5 shrink-0">
+        <svg class="w-full h-full" viewBox="0 0 250 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- 좌측 세로 바 -->
+          <rect x="0" y="0" width="75" height="250" rx="20" fill="#0066FF"/>
+          <!-- 우측 상단 삼각형 재생 버튼 -->
+          <path d="M165 0C170.5 0 175.5 2.5 179 6.5L245 80C254 90 247 106 234 106H177C170.373 106 165 100.627 165 94V0Z" fill="#0066FF"/>
+          <!-- 우측 하단 웨이브 리본 -->
+          <path d="M85 116C85 110.477 89.4772 106 95 106H152C160.837 106 168 113.163 168 122V145C168 165 178 180 195 195L210 208C222 218 228 230 220 244C215 253 203 252 195 248L175 237C155 226 142 205 138 182L132 150C128 132 118 122 102 120L95 119C89.4772 119 85 117.657 85 116Z" fill="#0066FF"/>
+        </svg>
       </div>
       <div>
         <div class="flex items-center gap-2">
@@ -211,12 +219,11 @@
       });
     }
 
-    // [핵심] 상단 배너 끝 지점을 픽셀로 감지하여 안드로이드(상태바 없음)와 iOS(상태바 있음) 완벽 적응
+    // 상단 배너 끝 지점을 픽셀로 감지하여 안드로이드와 iOS 자동 적응
     function cropCalloutSections(img) {
       const w = img.width;
       const h = img.height;
 
-      // 임시 캔버스로 배너 하단 경계(Y) 추적
       const tempCanvas = document.createElement('canvas');
       const tempCtx = tempCanvas.getContext('2d');
       tempCanvas.width = w;
@@ -230,18 +237,16 @@
       let bannerStartY = -1;
       let bannerEndY = -1;
 
-      // Y축 스캔 (5% ~ 35% 구간)
       for (let y = Math.floor(h * 0.03); y < Math.floor(h * 0.35); y++) {
         const idx = (y * w + midX) * 4;
         const r = data[idx], g = data[idx + 1], b = data[idx + 2];
 
-        // 보라색 배너(R, B > G) 또는 연두색 배너(G > R, B) 감지
         const isBannerColor = (b > g + 6 && r > g + 4) || (g > r + 8 && g > b + 8);
         if (isBannerColor) {
           if (bannerStartY === -1) bannerStartY = y;
           bannerEndY = y;
         } else if (bannerEndY !== -1 && (y - bannerEndY) > 6) {
-          break; // 배너 영역 통과 완료
+          break;
         }
       }
 
@@ -254,8 +259,7 @@
       bannerCanvas.height = bH;
       bctx.drawImage(img, 0, bY, w, bH, 0, 0, w, bH);
 
-      // 2. 하단 카드 블록 크롭 (배너 바로 아래 + 여백부터 시작)
-      // 안드로이드(18% 부근)와 iOS(25% 부근) 모두 첫 번째 키값이 잘리지 않도록 동적 위치 지정
+      // 2. 하단 카드 블록 크롭 (배너 바로 아래부터 시작)
       const listCanvas = document.createElement('canvas');
       const lctx = listCanvas.getContext('2d');
       const lY = bannerEndY !== -1 ? (bannerEndY + Math.floor(h * 0.015)) : Math.floor(h * 0.19);
@@ -384,18 +388,14 @@
           const previewUrl = URL.createObjectURL(file);
           const img = await loadImage(file);
 
-          // 동적 배너 픽셀 추적 기반 블록 분할
           const { bannerUrl, listUrl } = cropCalloutSections(img);
 
-          // 상단 배너 메타데이터 추출
           const bannerRet = await titleWorker.recognize(bannerUrl);
           const meta = parseBannerMetadata(bannerRet.data.text);
 
-          // 하단 카드 블록 키값 전수 추출
           const listRet = await keyWorker.recognize(listUrl);
           const rawGroupKeys = parsePureAlphanumericKeys(listRet.data.text);
 
-          // 중복 키값 자동 소거
           const uniqueKeysForThisGroup = [];
           rawGroupKeys.forEach(k => {
             if (!globalKeyCodes.has(k)) {
